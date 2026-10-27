@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "873928517155",
+    "project_id": "peers-83c6e",
+    "storage_bucket": "peers-83c6e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:873928517155:android:0fb12d6b818bd6a4b67396",
+        "android_client_info": {
+          "package_name": "com.example.peers"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZMjbRDQGnF5lZTk4UotYcj3mSKsFQ6rk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
