@@ -22,8 +22,28 @@ class AuthViewModel : ViewModel() {
     private val _isOtpSent = mutableStateOf(false)
     val isOtpSent: State<Boolean> = _isOtpSent
 
-    private val _isAuthenticated = mutableStateOf(false)
+    private val _isAuthenticated = mutableStateOf(auth.currentUser != null)
     val isAuthenticated: State<Boolean> = _isAuthenticated
+
+    fun signInWithEmail(email: String, password: String) {
+        auth.signInWithEmailAndPassword(email.trim(), password)
+            .addOnCompleteListener { task ->
+                _isAuthenticated.value = task.isSuccessful
+                _authError.value = if (task.isSuccessful) null else task.exception?.localizedMessage
+            }
+    }
+
+    fun createAccountWithEmail(email: String, password: String) {
+        auth.createUserWithEmailAndPassword(email.trim(), password)
+            .addOnCompleteListener { task ->
+                _isAuthenticated.value = task.isSuccessful
+                _authError.value = if (task.isSuccessful) null else task.exception?.localizedMessage
+            }
+    }
+
+    fun signInWithGoogleCredential(credential: com.google.firebase.auth.AuthCredential) {
+        signInWithCredential(credential)
+    }
 
     fun sendOtp(phoneNumber: String, activity: Activity) {
         val options = PhoneAuthOptions.newBuilder(auth)
@@ -62,7 +82,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    private fun signInWithCredential(credential: PhoneAuthCredential) {
+    private fun signInWithCredential(credential: com.google.firebase.auth.AuthCredential) {
         auth.signInWithCredential(credential)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
