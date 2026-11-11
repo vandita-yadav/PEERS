@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -298,6 +300,10 @@ private fun PeerCard(peer: SuggestedPeer, score: Int) {
             }
             FilledTonalButton(
                 onClick = { /* Connect flow → Community phase */ },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = PeersPrimaryIndigo,
+                    contentColor = Color.White,
+                ),
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             ) {
                 Text("Connect")
