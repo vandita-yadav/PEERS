@@ -22,6 +22,7 @@ import com.example.peers.features.auth.SignupScreen
 import com.example.peers.ui.theme.PeersTheme
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import com.example.peers.features.profile.ProfileSetupScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,13 +34,22 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    PeersAuthApp(this)
+                    // TEMPORARILY COMMENT OUT THE OLD AUTH FLOW:
+                    // PeersAuthApp(activity = this)
+
+                    // ADD THIS TO TEST PROFILE SETUP DIRECTLY:
+
+
+                            ProfileSetupScreen(
+                                onProfileComplete = { userId ->
+                                    println("Testing complete! User ID: $userId")
+                                }
+                            )
                 }
             }
         }
     }
 }
-
 @Composable
 fun PeersAuthApp(activity: ComponentActivity) {
     val navController = rememberNavController()
