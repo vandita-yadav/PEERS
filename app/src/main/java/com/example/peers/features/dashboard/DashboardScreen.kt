@@ -1,7 +1,9 @@
 package com.example.peers.features.dashboard
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +39,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -48,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,6 +63,7 @@ import com.example.peers.features.dashboard.components.PeersHeader
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersSky
+import com.example.peers.ui.theme.PeersThemeMode
 import kotlinx.coroutines.launch
 
 /** Bottom-navigation destinations for the app shell. */
@@ -71,6 +76,8 @@ private enum class DashTab(val label: String) {
  */
 @Composable
 fun DashboardScreen(
+    themeMode: PeersThemeMode,
+    onToggleTheme: () -> Unit,
     onSignOut: () -> Unit,
     dashboardViewModel: DashboardViewModel = viewModel(),
 ) {
@@ -86,7 +93,10 @@ fun DashboardScreen(
         drawerContent = {
             PeersDrawerSheet(
                 viewModel = dashboardViewModel,
+                themeMode = themeMode,
+                onToggleTheme = onToggleTheme,
                 onSignOut = onSignOut,
+                onClose = { scope.launch { drawerState.close() } },
                 onNavigateToNotifications = {
                     showNotifications = true
                     scope.launch { drawerState.close() }
@@ -172,59 +182,134 @@ private fun PlaceholderTab(emoji: String, message: String) {
 @Composable
 private fun PeersDrawerSheet(
     viewModel: DashboardViewModel,
+    themeMode: PeersThemeMode,
+    onToggleTheme: () -> Unit,
     onSignOut: () -> Unit,
+    onClose: () -> Unit,
     onNavigateToNotifications: () -> Unit,
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
+    val isDark = themeMode == PeersThemeMode.NeonDark
 
-    ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
+    ModalDrawerSheet(
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.width(310.dp),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // Profile section
-            val emojis = listOf("🧑🏿", "👩🏿", "👦🏽", "👧🏼", "👩🏽", "🧔🏽", "🧕🏾")
-            val pastels = listOf(PeersPrimaryIndigo, PeersLavender, PeersSky, com.example.peers.ui.theme.PeersMint)
+            // ── Profile banner ────────────────────────────────────────────────
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(pastels[(user?.uid?.hashCode() ?: 0).mod(pastels.size)]),
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(PeersPrimaryIndigo, PeersLavender)
+                        )
+                    )
+                    .padding(horizontal = 20.dp, vertical = 28.dp),
             ) {
-                Text(emojis[(user?.uid?.hashCode() ?: 0).mod(emojis.size)], fontSize = 30.sp)
+                Column {
+                    val emojis = listOf("🧑🏿", "👩🏿", "👦🏽", "👧🏼", "👩🏽", "🧔🏽", "🧕🏾")
+                    val pastels = listOf(PeersLavender, PeersSky, com.example.peers.ui.theme.PeersMint)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(70.dp)
+                            .clip(CircleShape)
+                            .background(pastels[(user?.uid?.hashCode() ?: 0).mod(pastels.size)])
+                            .border(3.dp, Color.White.copy(alpha = 0.85f), CircleShape),
+                    ) {
+                        Text(emojis[(user?.uid?.hashCode() ?: 0).mod(emojis.size)], fontSize = 30.sp)
+                    }
+                    Text(
+                        user?.name ?: "Peer",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(top = 14.dp),
+                    )
+                    Text(
+                        user?.email ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.85f),
+                    )
+                    if (!user?.university.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color.White.copy(alpha = 0.18f),
+                            modifier = Modifier.padding(top = 10.dp),
+                        ) {
+                            Text(
+                                "🎓 ${user?.university}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
             }
-            Text(
-                user?.name ?: "Peer",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 12.dp),
-            )
-            Text(
-                user?.email ?: "",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 18.dp))
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                DrawerSectionLabel("EXPLORE")
+                DrawerItem("🔔", "Notifications", onClick = onNavigateToNotifications)
+                DrawerItem("🎪", "Events") { onClose() }
+                DrawerItem("💰", "Budget Planner") { onClose() }
 
-            DrawerItem("🔔", "Notifications", onNavigateToNotifications)
-            DrawerItem("🎪", "Events") { }
-            DrawerItem("💰", "Budget Planner") { }
-            DrawerItem("⭐", "Rate Us") { }
+                DrawerSectionLabel("PREFERENCES")
+                // Dark theme switch row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { onToggleTheme() }
+                        .padding(vertical = 6.dp, horizontal = 8.dp),
+                ) {
+                    Text("🌙", fontSize = 20.sp)
+                    Text(
+                        "Dark Theme",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 14.dp),
+                    )
+                    Switch(
+                        checked = isDark,
+                        onCheckedChange = { onToggleTheme() },
+                    )
+                }
+                DrawerItem("⭐", "Rate Us") { onClose() }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 18.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-            DrawerItem("🚪", "Sign Out", onSignOut)
+                DrawerItem("🚪", "Sign Out", tint = MaterialTheme.colorScheme.error) { onSignOut() }
+            }
         }
     }
 }
 
 @Composable
-private fun DrawerItem(emoji: String, label: String, onClick: () -> Unit) {
+private fun DrawerSectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 10.dp, top = 14.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun DrawerItem(
+    emoji: String,
+    label: String,
+    tint: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -237,7 +322,7 @@ private fun DrawerItem(emoji: String, label: String, onClick: () -> Unit) {
         Text(
             label,
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = tint,
             modifier = Modifier.padding(start = 14.dp),
         )
     }

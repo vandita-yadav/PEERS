@@ -27,13 +27,16 @@ import com.example.peers.features.dashboard.DashboardScreen
 import com.example.peers.features.profile.ProfileSetupScreen
 import com.example.peers.ui.theme.PeersTheme
 import com.example.peers.ui.theme.PeersThemeMode
+import com.example.peers.ui.theme.ThemePreferences
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            var themeMode by remember { mutableStateOf(PeersThemeMode.AestheticLight) }
+            var themeMode by remember {
+                mutableStateOf(ThemePreferences.load(applicationContext))
+            }
             PeersTheme(mode = themeMode) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     PeersAuthApp(
@@ -44,6 +47,7 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 PeersThemeMode.AestheticLight
                             }
+                            ThemePreferences.save(applicationContext, themeMode)
                         }
                     )
                 }
@@ -124,6 +128,8 @@ private fun PeersAuthApp(themeMode: PeersThemeMode, onToggleTheme: () -> Unit) {
         }
         composable("dashboard") {
             DashboardScreen(
+                themeMode = themeMode,
+                onToggleTheme = onToggleTheme,
                 onSignOut = {
                     authViewModel.signOut(navController.context as ComponentActivity)
                     navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
