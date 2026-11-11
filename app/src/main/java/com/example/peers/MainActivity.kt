@@ -23,8 +23,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.peers.features.auth.AuthState
 import com.example.peers.features.auth.AuthViewModel
 import com.example.peers.features.onboarding.OnboardingScreens
-import com.example.peers.features.profile.DashboardPlaceholder
-import com.example.peers.features.profile.ProfileFormScreen
+import com.example.peers.features.dashboard.DashboardPlaceholder
+import com.example.peers.features.profile.ProfileSetupScreen
 import com.example.peers.ui.theme.PeersTheme
 import com.example.peers.ui.theme.PeersThemeMode
 
@@ -103,7 +103,13 @@ private fun PeersAuthApp(themeMode: PeersThemeMode, onToggleTheme: () -> Unit) {
             )
         }
         composable("profile") {
-            ProfileFormScreen(onBack = { navController.popBackStack() })
+            ProfileSetupScreen(
+                onProfileComplete = {
+                    navController.navigate("dashboard") {
+                        popUpTo("welcome") { inclusive = true }
+                    }
+                }
+            )
         }
         composable("dashboard") {
             DashboardPlaceholder(onBack = { navController.popBackStack() })

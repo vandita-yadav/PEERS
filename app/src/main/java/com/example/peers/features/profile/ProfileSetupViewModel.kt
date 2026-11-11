@@ -1,15 +1,49 @@
 package com.example.peers.features.profile
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+
+sealed interface ProfileCompletion {
+    data object Idle : ProfileCompletion
+    data object Saving : ProfileCompletion
+    data class Success(val userId: String) : ProfileCompletion
+    data class Error(val message: String) : ProfileCompletion
+}
 
 class ProfileSetupViewModel : ViewModel()
 {
+    private val auth = FirebaseAuth.getInstance()
+    private val firestore = FirebaseFirestore.getInstance()
+
     private val _state = MutableStateFlow(ProfileSetupState())
     val state: StateFlow<ProfileSetupState> = _state.asStateFlow()
+
+    private val _completion = MutableStateFlow<ProfileCompletion>(ProfileCompletion.Idle)
+    val completion: StateFlow<ProfileCompletion> = _completion.asStateFlow()
+
+    init {
+        // Prefill identity from the signed-in Google account (per documentation).
+        auth.currentUser?.let { user ->
+            _state.update {
+                it.copy(
+                    name = user.displayName ?: it.name,
+                    email = user.email ?: it.email,
+                    photoUrl = user.photoUrl?.toString() ?: it.photoUrl
+                )
+            }
+        }
+    }
+
+    val currentUserId: String?
+        get() = auth.currentUser?.uid
 
     // --- Navigation & Validation Logic ---
 
@@ -59,6 +93,9 @@ class ProfileSetupViewModel : ViewModel()
             else -> false
         }
     }
+
+    fun updateName(name: String) = _state.update { it.copy(name = name) }
+    fun updateEmail(email: String) = _state.update { it.copy(email = email) }
 
     // --- Step 1 Updates ---
 
@@ -122,12 +159,49 @@ class ProfileSetupViewModel : ViewModel()
 
     // --- Final Submission ---
 
-    fun completeProfile(userId: String)
+    fun completeProfile()
     {
-        if (canProceedToNextStep()) {
-            val finalData = _state.value
-            // TODO: Dispatch finalData and userId to Firebase Firestore
-            println("Profile Completed for User: $userId. Data: $finalData")
+        val uid = currentUserId
+        if (uid == null) {
+            _completion.value = ProfileCompletion.Error("Not signed in. Please sign in again.")
+            return
         }
+        if (!canProceedToNextStep()) return
+
+        viewModelScope.launch {
+            _completion.value = ProfileCompletion.Saving
+            try {
+                val s = _state.value
+                firestore.collection("users").document(uid).set(
+                    mapOf(
+                        "uid" to uid,
+                        "name" to s.name,
+                        "email" to s.email,
+                        "photoUrl" to s.photoUrl,
+                        "countryOfOrigin" to s.countryOfOrigin,
+                        "currentCountry" to s.currentCountry,
+                        "currentCity" to s.currentCity,
+                        "university" to if (s.university == "Other") s.customUniversity else s.university,
+                        "course" to s.course,
+                        "degreeLevel" to s.degreeLevel,
+                        "yearOfStudy" to s.yearOfStudy,
+                        "expectedGraduationYear" to s.expectedGraduationYear,
+                        "bio" to s.bio,
+                        "languagesKnown" to s.languagesKnown,
+                        "avatarIndex" to s.selectedAvatar,
+                        "interests" to s.selectedInterests.toList(),
+                        "needs" to s.selectedNeeds.toList(),
+                        "profileCompleted" to true
+                    )
+                ).await()
+                _completion.value = ProfileCompletion.Success(uid)
+            } catch (e: Exception) {
+                _completion.value = ProfileCompletion.Error(e.message ?: "Failed to save profile.")
+            }
+        }
+    }
+
+    fun consumeCompletion() {
+        _completion.value = ProfileCompletion.Idle
     }
 }

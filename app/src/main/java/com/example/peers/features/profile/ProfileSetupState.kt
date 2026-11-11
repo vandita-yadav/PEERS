@@ -3,6 +3,11 @@ package com.example.peers.features.profile
 data class ProfileSetupState(
     val currentStep: Int = 1,
 
+    // Identity (prefilled from the Google account, editable in Step 1)
+    val name: String = "",
+    val email: String = "",
+    val photoUrl: String? = null,
+
     // Step 1
     val countryOfOrigin: String = "",
     val currentCountry: String = "",
