@@ -168,12 +168,16 @@ class ProfileSetupViewModel : ViewModel()
             _completion.value = ProfileCompletion.Saving
             try {
                 val s = _state.value
+                // Name/email/photo may not be re-captured in the form — fall back to the
+                // Google account values and merge so existing fields aren't clobbered.
+                val authUser = FirebaseAuth.getInstance().currentUser
                 firestore.collection("users").document(uid).set(
                     mapOf(
                         "uid" to uid,
-                        "name" to s.name,
-                        "email" to s.email,
-                        "photoUrl" to s.photoUrl,
+                        "name" to s.name.ifBlank { authUser?.displayName ?: "" },
+                        "email" to s.email.ifBlank { authUser?.email ?: "" },
+                        "photoUrl" to (s.photoUrl?.takeIf { it.isNotBlank() }
+                            ?: authUser?.photoUrl?.toString() ?: ""),
                         "countryOfOrigin" to s.countryOfOrigin,
                         "currentCountry" to s.currentCountry,
                         "currentCity" to s.currentCity,
@@ -188,7 +192,8 @@ class ProfileSetupViewModel : ViewModel()
                         "interests" to s.selectedInterests.toList(),
                         "needs" to s.selectedNeeds.toList(),
                         "profileCompleted" to true
-                    )
+                    ),
+                    com.google.firebase.firestore.SetOptions.merge()
                 ).await()
                 _completion.value = ProfileCompletion.Success(uid)
             } catch (e: Exception) {
