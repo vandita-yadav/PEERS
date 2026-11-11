@@ -30,6 +30,21 @@ fun ProfileSetupScreen(
     onProfileComplete: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    val completion by viewModel.completion.collectAsState()
+
+    // Navigate away when the profile has been saved successfully.
+    LaunchedEffect(completion) {
+        when (val c = completion) {
+            is ProfileCompletion.Success -> {
+                onProfileComplete(c.userId)
+                viewModel.consumeCompletion()
+            }
+            is ProfileCompletion.Error -> {
+                viewModel.consumeCompletion()
+            }
+            else -> Unit
+        }
+    }
 
     Scaffold(
         containerColor = LightBackground,
@@ -88,14 +103,13 @@ fun ProfileSetupScreen(
                     Button(
                         onClick = {
                             if (state.currentStep == 4) {
-                                // We will pass the actual user ID once OAuth is ready
-                                viewModel.completeProfile("temp_user_id_123")
-                                onProfileComplete("temp_user_id_123")
+                                viewModel.completeProfile()
                             } else {
                                 viewModel.nextStep()
                             }
                         },
-                        enabled = viewModel.canProceedToNextStep(),
+                        enabled = viewModel.canProceedToNextStep() &&
+                            viewModel.completion.value !is ProfileCompletion.Saving,
                         colors = ButtonDefaults.buttonColors(containerColor = PeersIndigo)
                     ) {
                         Text(if (state.currentStep == 4) "Complete Profile" else "Continue", color = Color.White)

@@ -70,7 +70,12 @@ object OnboardingScreens {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun Welcome(onSignUp: () -> Unit, onSignIn: () -> Unit, onToggleTheme: () -> Unit, isNeonDark: Boolean) {
+    fun Welcome(
+        isSigningIn: Boolean,
+        onContinueWithGoogle: () -> Unit,
+        onToggleTheme: () -> Unit,
+        isNeonDark: Boolean
+    ) {
         var showSignIn by remember { mutableStateOf(false) }
         var signingUp by remember { mutableStateOf(true) }
         val pagerState = rememberPagerState(pageCount = { slides.size })
@@ -144,9 +149,18 @@ object OnboardingScreens {
                     Spacer(Modifier.height(8.dp))
                     Text("Choose how you’d like to continue.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(22.dp))
-                    OutlinedButton(onClick = { showSignIn = false; if (signingUp) onSignUp() else onSignIn() }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(14.dp)) {
-                        Text("G", color = PeersPrimaryIndigo, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                        Text("   Continue with Google", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                    OutlinedButton(
+                        onClick = onContinueWithGoogle,
+                        enabled = !isSigningIn,
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        if (isSigningIn) {
+                            Text("Signing in…", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                        } else {
+                            Text("G", color = PeersPrimaryIndigo, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                            Text("   Continue with Google", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                        }
                     }
                     Spacer(Modifier.height(14.dp))
                 }
