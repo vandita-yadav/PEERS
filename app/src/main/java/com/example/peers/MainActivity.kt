@@ -57,6 +57,15 @@ private fun PeersAuthApp(themeMode: PeersThemeMode, onToggleTheme: () -> Unit) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val authState by authViewModel.authState.collectAsState()
+    val signInError by authViewModel.signInError.collectAsState()
+
+    // Surface sign-in failures as a toast (per docs: "Sign-in failed..." snackbar)
+    LaunchedEffect(signInError) {
+        signInError?.let {
+            Toast.makeText(navController.context, "Sign-in failed: $it", Toast.LENGTH_LONG).show()
+            authViewModel.consumeError()
+        }
+    }
 
     // Navigate after a successful sign-in:
     //   new user      → Profile Onboarding
@@ -83,12 +92,14 @@ private fun PeersAuthApp(themeMode: PeersThemeMode, onToggleTheme: () -> Unit) {
         composable("splash") {
             LaunchedEffect(Unit) {
                 kotlinx.coroutines.delay(1100)
-                // Returning users with an active Firebase session skip auth entirely.
-                if (authViewModel.isSessionActive()) {
-                    navController.navigate("dashboard") { popUpTo("splash") { inclusive = true } }
+                // Returning users with an active Firebase session AND a completed
+                // profile skip auth entirely; incomplete profiles go to onboarding.
+                val destination = if (authViewModel.isSessionActive()) {
+                    if (authViewModel.isProfileCompleted()) "dashboard" else "profile"
                 } else {
-                    navController.navigate("welcome") { popUpTo("splash") { inclusive = true } }
+                    "welcome"
                 }
+                navController.navigate(destination) { popUpTo("splash") { inclusive = true } }
             }
             OnboardingScreens.Splash()
         }

@@ -61,7 +61,7 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
                 readOnly = true,
                 label = { Text("University / College") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.Companion.PrimaryNotEditable).fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = LightSurface,
                     unfocusedContainerColor = LightSurface

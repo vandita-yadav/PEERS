@@ -70,7 +70,7 @@ class ProfileSetupViewModel : ViewModel()
         return when (currentState.currentStep)
         {
             1 -> {
-                // Ensure required fields are not empty
+                // Required fields actually shown in BasicInformationStep
                 val isUniversityValid = if (currentState.university == "Other") {
                     currentState.customUniversity.isNotBlank()
                 }
@@ -79,13 +79,9 @@ class ProfileSetupViewModel : ViewModel()
                     currentState.university.isNotBlank()
                 }
 
-                currentState.countryOfOrigin.isNotBlank() &&
-                        currentState.currentCountry.isNotBlank() &&
-                        currentState.currentCity.isNotBlank() &&
+                currentState.currentCountry.isNotBlank() &&
                         isUniversityValid &&
-                        currentState.course.isNotBlank() &&
-                        currentState.degreeLevel.isNotBlank() &&
-                        currentState.yearOfStudy.isNotBlank()
+                        currentState.course.isNotBlank()
             }
             2 -> true // Photo is technically optional based on docs, or has a default avatar
             3 -> currentState.selectedInterests.size >= 3 // Min 3 required

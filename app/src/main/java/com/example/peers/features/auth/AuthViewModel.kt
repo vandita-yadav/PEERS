@@ -1,6 +1,7 @@
 package com.example.peers.features.auth
 
 import android.app.Activity
+import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -53,6 +54,10 @@ sealed interface AuthState {
  */
 class AuthViewModel : ViewModel() {
 
+    private companion object {
+        const val TAG = "PeersAuth"
+    }
+
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
@@ -86,12 +91,17 @@ class AuthViewModel : ViewModel() {
 
                 val result = credentialManager.getCredential(activity, request)
                 val credential = result.credential
-                require(credential is GoogleIdTokenCredential) {
-                    "Unexpected credential type: ${credential.type}"
+                val idTokenCredential = if (credential is GoogleIdTokenCredential) {
+                    credential
+                } else if (credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    // Credential Manager wraps the token in a CustomCredential — unwrap it.
+                    GoogleIdTokenCredential.createFrom(credential.data)
+                } else {
+                    throw IllegalArgumentException("Unexpected credential type: ${credential.type}")
                 }
 
                 val firebaseCredential =
-                    GoogleAuthProvider.getCredential(credential.idToken, null)
+                    GoogleAuthProvider.getCredential(idTokenCredential.idToken, null)
                 val authResult = auth.signInWithCredential(firebaseCredential).await()
                 val user = requireNotNull(authResult.user) { "Firebase returned no user" }
 
@@ -104,8 +114,10 @@ class AuthViewModel : ViewModel() {
                 )
             } catch (e: GetCredentialCancellationException) {
                 // User dismissed the account chooser — silent return per documentation.
+                Log.i(TAG, "Sign-in cancelled by user")
                 _authState.value = AuthState.SignedOut
             } catch (e: Exception) {
+                Log.e(TAG, "Google sign-in failed", e)
                 _authState.value = AuthState.SignedOut
                 _signInError.value = e.message ?: "Sign-in failed. Please check your internet connection and try again."
             }
@@ -113,13 +125,14 @@ class AuthViewModel : ViewModel() {
     }
 
     /**
-     * Returns true if this Google account has never been used with PEERS, registering
-     * it in Firestore (`users/{uid}`) in that case. Returning users are left untouched.
+     * Returns true if onboarding is needed for this Google account: either the account
+     * has never been used with PEERS (registers it in Firestore in that case) or its
+     * profile is still incomplete. Returning users with complete profiles are untouched.
      */
     private suspend fun registerIfNewUser(user: FirebaseUser): Boolean {
         val userDoc = firestore.collection("users").document(user.uid)
         val snapshot = userDoc.get().await()
-        if (snapshot.exists()) return false
+        if (snapshot.exists()) return snapshot.getBoolean("profileCompleted") != true
 
         userDoc.set(
             mapOf(
@@ -132,6 +145,19 @@ class AuthViewModel : ViewModel() {
             )
         ).await()
         return true
+    }
+
+    /**
+     * Returns true if the signed-in user's profile is complete in Firestore.
+     * Used by the splash route to decide between Dashboard and Onboarding.
+     */
+    suspend fun isProfileCompleted(): Boolean {
+        val user = auth.currentUser ?: return false
+        return runCatching {
+            firestore.collection("users").document(user.uid)
+                .get().await()
+                .getBoolean("profileCompleted") == true
+        }.getOrDefault(false)
     }
 
     /** Marks the Firestore profile as completed (called after Profile Onboarding). */
