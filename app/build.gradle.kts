@@ -33,6 +33,11 @@ android {
             "WEB_CLIENT_ID",
             "\"${localProperties.getProperty("WEB_CLIENT_ID") ?: ""}\""
         )
+        buildConfigField(
+            "String",
+            "GEMINI_API_KEY",
+            "\"${localProperties.getProperty("GEMINI_API_KEY") ?: ""}\""
+        )
     }
 
     buildTypes {
@@ -87,6 +92,9 @@ dependencies {
     implementation("androidx.room:room-runtime:${libs.versions.room.get()}")
     implementation("androidx.room:room-ktx:${libs.versions.room.get()}")
     ksp("androidx.room:room-compiler:${libs.versions.room.get()}")
+
+    // Google Generative AI (Gemini free tier)
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
 }
 
 ksp {

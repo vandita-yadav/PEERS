@@ -74,6 +74,7 @@ fun DashboardHome(
     onOpenEvents: (LocalDate?) -> Unit = {},
     onOpenCommunity: () -> Unit = {},
     onOpenChecklist: () -> Unit = {},
+    onOpenAssistant: () -> Unit = {},
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
@@ -140,6 +141,10 @@ fun DashboardHome(
                     onConnect = { viewModel.connect(it) },
                 )
             }
+        }
+
+        item {
+            AiAssistantBanner(onClick = onOpenAssistant)
         }
 
         item {
@@ -660,6 +665,87 @@ private fun EmptyStateCard(emoji: String, message: String) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiAssistantBanner(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.5.dp,
+            Brush.horizontalGradient(
+                listOf(PeersLavender, PeersSky, PeersMint)
+            )
+        ),
+        shadowElevation = 2.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(PeersLavender.copy(alpha = 0.35f), PeersSky.copy(alpha = 0.35f))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("✨", fontSize = 22.sp)
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "PEERS AI Student Guide",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = PeersLavender.copy(alpha = 0.45f)
+                    ) {
+                        Text(
+                            "AI",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF333366),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text(
+                    "Got questions on visas, jobs, banking or housing? Ask your advisor",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Icon(
+                Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = "Open AI Guide",
+                tint = PeersPrimaryIndigo,
+                modifier = Modifier.size(20.dp)
             )
         }
     }

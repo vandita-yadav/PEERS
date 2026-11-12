@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.features.accommodation.AccommodationScreen
+import com.example.peers.features.assistant.AssistantScreen
 import com.example.peers.features.budget.BudgetPlannerScreen
 import com.example.peers.features.checklist.ChecklistScreen
 import com.example.peers.features.community.ConnectionState
@@ -114,6 +115,7 @@ fun DashboardScreen(
     var showAccommodation by remember { mutableStateOf(false) }
     var showBudget by remember { mutableStateOf(false) }
     var showChecklist by remember { mutableStateOf(false) }
+    var showAssistant by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showInviteSheet by remember { mutableStateOf(false) }
@@ -143,6 +145,7 @@ fun DashboardScreen(
                 onClose = { scope.launch { drawerState.close() } },
                 onNavigateToNotifications = {
                     showNotifications = true
+                    showAssistant = false
                     showAccommodation = false
                     showBudget = false
                     showChecklist = false
@@ -152,6 +155,7 @@ fun DashboardScreen(
                 },
                 onNavigateToAccommodation = {
                     showAccommodation = true
+                    showAssistant = false
                     showNotifications = false
                     showBudget = false
                     showChecklist = false
@@ -161,6 +165,7 @@ fun DashboardScreen(
                 },
                 onNavigateToEvents = {
                     currentTab = DashTab.EVENTS
+                    showAssistant = false
                     showNotifications = false
                     showAccommodation = false
                     showBudget = false
@@ -171,6 +176,7 @@ fun DashboardScreen(
                 },
                 onNavigateToBudget = {
                     showBudget = true
+                    showAssistant = false
                     showNotifications = false
                     showAccommodation = false
                     showChecklist = false
@@ -180,6 +186,17 @@ fun DashboardScreen(
                 },
                 onNavigateToChecklist = {
                     showChecklist = true
+                    showAssistant = false
+                    showNotifications = false
+                    showAccommodation = false
+                    showBudget = false
+                    showEditProfile = false
+                    showSettings = false
+                    scope.launch { drawerState.close() }
+                },
+                onNavigateToAssistant = {
+                    showAssistant = true
+                    showChecklist = false
                     showNotifications = false
                     showAccommodation = false
                     showBudget = false
@@ -193,6 +210,8 @@ fun DashboardScreen(
                 },
                 onNavigateToSettings = {
                     showSettings = true
+                    showAssistant = false
+                    showChecklist = false
                     showNotifications = false
                     showAccommodation = false
                     showBudget = false
@@ -213,7 +232,7 @@ fun DashboardScreen(
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                if (!showEditProfile && !showSettings && !showNotifications && !showAccommodation && !showBudget && !showChecklist) {
+                if (!showEditProfile && !showSettings && !showNotifications && !showAccommodation && !showBudget && !showChecklist && !showAssistant) {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                         DashTab.entries.forEach { tab ->
                             NavigationBarItem(
@@ -227,6 +246,7 @@ fun DashboardScreen(
                                     showAccommodation = false
                                     showBudget = false
                                     showChecklist = false
+                                    showAssistant = false
                                     showEditProfile = false
                                     showSettings = false
                                 },
@@ -300,6 +320,28 @@ fun DashboardScreen(
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
+                showAssistant -> {
+                    AssistantScreen(
+                        onBack = { showAssistant = false },
+                        onNavigateToChecklist = {
+                            showAssistant = false
+                            showChecklist = true
+                        },
+                        onNavigateToBudget = {
+                            showAssistant = false
+                            showBudget = true
+                        },
+                        onNavigateToAccommodation = {
+                            showAssistant = false
+                            showAccommodation = true
+                        },
+                        onNavigateToCommunity = {
+                            showAssistant = false
+                            currentTab = DashTab.COMMUNITY
+                        },
+                        modifier = Modifier.padding(innerPadding),
+                    )
+                }
                 else -> {
                     if (currentTab == DashTab.PROFILE) {
                         ProfileScreen(
@@ -328,6 +370,7 @@ fun DashboardScreen(
                                         onOpenAccommodation = { showAccommodation = true },
                                         onOpenBudget = { showBudget = true },
                                         onOpenChecklist = { showChecklist = true },
+                                        onOpenAssistant = { showAssistant = true },
                                         onOpenEvents = { date ->
                                             targetEventDate = date
                                             currentTab = DashTab.EVENTS
@@ -404,6 +447,7 @@ private fun PeersDrawerSheet(
     onNavigateToEvents: () -> Unit,
     onNavigateToBudget: () -> Unit,
     onNavigateToChecklist: () -> Unit,
+    onNavigateToAssistant: () -> Unit = {},
     onNavigateToInvite: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToRateUs: () -> Unit,
@@ -472,6 +516,7 @@ private fun PeersDrawerSheet(
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                 DrawerSectionLabel("EXPLORE")
                 DrawerItem("🔔", "Notifications", onClick = onNavigateToNotifications)
+                DrawerItem("🤖", "AI Student Assistant", onClick = onNavigateToAssistant)
                 DrawerItem("🏠", "Accommodation", onClick = onNavigateToAccommodation)
                 DrawerItem("🎪", "Events", onClick = onNavigateToEvents)
                 DrawerItem("💰", "Budget Planner", onClick = onNavigateToBudget)
