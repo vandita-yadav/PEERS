@@ -71,6 +71,8 @@ fun DashboardHome(
     viewModel: DashboardViewModel,
     onOpenAccommodation: () -> Unit = {},
     onOpenBudget: () -> Unit = {},
+    onOpenEvents: (LocalDate?) -> Unit = {},
+    onOpenCommunity: () -> Unit = {},
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
@@ -103,7 +105,7 @@ fun DashboardHome(
             SectionHeader(
                 title = if (selectedDate == today) "Today's Events" else "Events on ${selectedDate.format(homeDateFormatter)}",
                 actionLabel = "View All",
-                onAction = { },
+                onAction = { onOpenEvents(selectedDate) },
             )
             if (shown.isEmpty()) {
                 EmptyStateCard(
@@ -144,6 +146,8 @@ fun DashboardHome(
             DiscoverGrid(
                 onOpen = { item ->
                     when (item.title) {
+                        "Make Friends" -> onOpenCommunity()
+                        "Events" -> onOpenEvents(null)
                         "Accommodation" -> onOpenAccommodation()
                         "Budget & Finance" -> onOpenBudget()
                     }
