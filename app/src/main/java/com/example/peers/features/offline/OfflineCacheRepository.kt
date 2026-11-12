@@ -211,10 +211,11 @@ class OfflineCacheRepository private constructor(context: Context) {
         return runCatching {
             if (wishlisted) {
                 ref.set(mapOf("addedAt" to FieldValue.serverTimestamp())).await()
+                dao.upsertWishlist(WishlistCacheEntity(listingId = listingId, pendingSync = false, pendingDelete = false))
             } else {
                 ref.delete().await()
+                dao.deleteWishlist(listingId)
             }
-            dao.deleteWishlist(listingId)
             true
         }.getOrElse {
             android.util.Log.w("PeersCache", "wishlist write queued", it)
@@ -269,10 +270,11 @@ class OfflineCacheRepository private constructor(context: Context) {
                         "savedAt" to System.currentTimeMillis(),
                     )
                 ).await()
+                dao.upsertSavedEvent(event.copy(pendingSync = false, pendingDelete = false))
             } else {
                 ref.delete().await()
+                dao.deleteSavedEvent(event.eventId)
             }
-            dao.deleteSavedEvent(event.eventId)
             true
         }.getOrElse {
             android.util.Log.w("PeersCache", "saved event queued", it)
@@ -286,9 +288,13 @@ class OfflineCacheRepository private constructor(context: Context) {
         dao.pendingWishlist().forEach { row ->
             runCatching {
                 val ref = wishlistRef()?.document(row.listingId) ?: return@forEach
-                if (row.pendingDelete) ref.delete().await()
-                else ref.set(mapOf("addedAt" to FieldValue.serverTimestamp())).await()
-                dao.deleteWishlist(row.listingId)
+                if (row.pendingDelete) {
+                    ref.delete().await()
+                    dao.deleteWishlist(row.listingId)
+                } else {
+                    ref.set(mapOf("addedAt" to FieldValue.serverTimestamp())).await()
+                    dao.upsertWishlist(row.copy(pendingSync = false, pendingDelete = false))
+                }
             }
         }
 

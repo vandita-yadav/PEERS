@@ -1,8 +1,8 @@
 # Firestore Security Rules
 
 Paste this into **Firebase console → Firestore Database → Rules** and publish.
-It covers the current feature set: profiles, connections, notifications,
-accommodation listings, and wishlists.
+It covers all feature sets: profiles, connections, notifications,
+accommodation listings, wishlists, saved events, forum posts, and events.
 
 ```rules
 rules_version = '2';
@@ -40,6 +40,11 @@ service cloud.firestore {
 
       // Events saved for later (offline-first cache mirrors this).
       match /savedEvents/{eventId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Events the student is attending (RSVPs).
+      match /attendingEvents/{eventId} {
         allow read, write: if isOwner(userId);
       }
     }
@@ -87,16 +92,59 @@ service cloud.firestore {
       );
       allow delete: if false;
     }
+
+    // Discussion forum posts and threaded comments.
+    match /forumPosts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && (
+        resource.data.authorUid == request.auth.uid ||
+        // Students may upvote/toggle upvotes and increment commentCount
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['upvotedBy', 'upvoteCount', 'commentCount'])
+      );
+      allow delete: if signedIn() && resource.data.authorUid == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn();
+        allow update, delete: if signedIn() && resource.data.authorUid == request.auth.uid;
+      }
+    }
+
+    // Moderation reports for forum discussions and comments.
+    match /forumReports/{reportId} {
+      allow read: if false;
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    // Campus & city events and attendee RSVP lists.
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() && (
+        resource.data.createdBy == request.auth.uid ||
+        // Any student can update attendeeCount during RSVP transactions
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendeeCount'])
+      );
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+
+      match /attendees/{userId} {
+        allow read: if signedIn();
+        allow create, delete: if isOwner(userId);
+        allow update: if false;
+      }
+    }
   }
 }
 ```
 
 ## Notes
 
-- Listings created from the app start with the contributor recorded as the owner.
+- Listings and posts created from the app start with the contributor recorded as the owner.
   Only that student can edit or remove them.
-- The app writes no demo data to Firestore; demo listings are bundled locally
-  until real listings are added.
+- The app uses optimistic local state so interactions (upvoting, replying, RSVPing, saving)
+  work seamlessly in airplane mode or while syncing.
 - After publishing, re-open the app (Firestore listeners do not recover from a
   permission denial until the app restarts).
 - Never commit `google-services.json`, `local.properties`, or API keys.

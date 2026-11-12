@@ -65,11 +65,14 @@ import com.example.peers.features.auth.AuthViewModel
 import com.example.peers.features.accommodation.AccommodationScreen
 import com.example.peers.features.budget.BudgetPlannerScreen
 import com.example.peers.features.dashboard.components.PeersHeader
+import com.example.peers.features.events.EventsScreen
+import com.example.peers.features.forum.ForumScreen
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersSky
 import com.example.peers.ui.theme.PeersThemeMode
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /** Bottom-navigation destinations for the app shell. */
 private enum class DashTab(val label: String) {
@@ -89,6 +92,7 @@ fun DashboardScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var currentTab by remember { mutableStateOf(DashTab.HOME) }
+    var targetEventDate by remember { mutableStateOf<LocalDate?>(null) }
     var showNotifications by remember { mutableStateOf(false) }
     var showAccommodation by remember { mutableStateOf(false) }
     var showBudget by remember { mutableStateOf(false) }
@@ -141,6 +145,9 @@ fun DashboardScreen(
                             selected = currentTab == tab,
                             onClick = {
                                 currentTab = tab
+                                if (tab != DashTab.EVENTS) {
+                                    targetEventDate = null
+                                }
                                 showNotifications = false
                                 showAccommodation = false
                                 showBudget = false
@@ -196,9 +203,14 @@ fun DashboardScreen(
                                 viewModel = dashboardViewModel,
                                 onOpenAccommodation = { showAccommodation = true },
                                 onOpenBudget = { showBudget = true },
+                                onOpenEvents = { date ->
+                                    targetEventDate = date
+                                    currentTab = DashTab.EVENTS
+                                },
+                                onOpenCommunity = { currentTab = DashTab.COMMUNITY },
                             )
-                            DashTab.COMMUNITY -> PlaceholderTab("🫂", "Community is coming next — connections & feed.")
-                            DashTab.EVENTS -> PlaceholderTab("🎪", "Full event calendar arrives with the Events phase.")
+                            DashTab.COMMUNITY -> ForumScreen()
+                            DashTab.EVENTS -> EventsScreen(initialDate = targetEventDate)
                             DashTab.PROFILE -> PlaceholderTab("🧑", "Your public profile page is next.")
                         }
                     }
