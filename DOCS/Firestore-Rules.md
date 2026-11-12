@@ -44,8 +44,43 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.contributorUid == request.auth.uid;
-      allow update, delete: if signedIn()
+      allow update: if signedIn() && (
+        resource.data.contributorUid == request.auth.uid ||
+        // Signed-in students may only refresh the aggregate counters below.
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['verifiedCount', 'rating', 'reviewCount'])
+      );
+      allow delete: if signedIn()
         && resource.data.contributorUid == request.auth.uid;
+
+      // One community verification per student.
+      match /verifications/{userId} {
+        allow read: if signedIn();
+        allow create: if isOwner(userId);
+        allow update, delete: if false;
+      }
+
+      // One review per student, readable by everyone signed in.
+      match /reviews/{userId} {
+        allow read: if signedIn();
+        allow create, update: if isOwner(userId);
+        allow delete: if false;
+      }
+    }
+
+    // Roommate requests: only the sender and recipient can read them.
+    match /roommateRequests/{requestId} {
+      allow read: if signedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid;
+      allow update: if signedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+      allow delete: if false;
     }
   }
 }

@@ -25,9 +25,12 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,6 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -60,11 +65,22 @@ import com.example.peers.ui.theme.PeersSky
 fun AccommodationDetails(
     listing: AccommodationListing,
     wishlisted: Boolean,
+    isVerifiedByMe: Boolean,
+    isReviewed: Boolean,
+    reviews: List<AccommodationReview>,
     onWishlist: () -> Unit,
+    onMarkGenuine: () -> Unit,
+    onRemoveGenuine: () -> Unit,
+    onAddReview: (Int, String) -> Unit,
+    onReportReview: (String) -> Unit,
+    onRoommateRequest: (ContactInfo, String) -> Unit,
 ) {
     val context = LocalContext.current
     var showEnquiry by remember { mutableStateOf(false) }
     var enquirySent by remember { mutableStateOf(false) }
+    var showReviewDialog by remember { mutableStateOf(false) }
+    var showRoommateDialog by remember { mutableStateOf(false) }
+    var roommateSent by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -167,6 +183,32 @@ fun AccommodationDetails(
                     )
                 }
             }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                if (isVerifiedByMe) {
+                    Text(
+                        "✓ You marked this stay genuine",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFF1F6B3B),
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onRemoveGenuine) {
+                        Text("Remove", style = MaterialTheme.typography.labelMedium)
+                    }
+                } else {
+                    FilledTonalButton(onClick = onMarkGenuine) {
+                        Text("Mark as Genuine")
+                    }
+                    Text(
+                        "  One per student",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
 
             DetailSection("About this stay")
             Text(
@@ -178,6 +220,59 @@ fun AccommodationDetails(
 
             DetailSection("Amenities")
             FlowRowChips(listing.amenities)
+
+            DetailSection("Reviews")
+            if (reviews.isEmpty()) {
+                Text(
+                    "No reviews yet — be the first to share your experience.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                reviews.take(3).forEach { review ->
+                    ReviewRow(review = review, onReport = { onReportReview(review.id) })
+                }
+            }
+            if (isReviewed) {
+                Text(
+                    "You've reviewed this stay. Thanks!",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFF1F6B3B),
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            } else {
+                OutlinedButton(
+                    onClick = { showReviewDialog = true },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.padding(top = 6.dp),
+                ) {
+                    Icon(Icons.Rounded.StarBorder, null, Modifier.size(18.dp))
+                    Text("  Write a review")
+                }
+            }
+
+            DetailSection("Roommate")
+            Text(
+                "Looking for someone to share this stay? Send a request with only the contact details you choose to share.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(
+                onClick = { showRoommateDialog = true },
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PeersPrimaryIndigo),
+                modifier = Modifier.padding(top = 10.dp),
+            ) {
+                Text("Looking for a roommate", fontWeight = FontWeight.SemiBold)
+            }
+            if (roommateSent) {
+                Text(
+                    "Request sent! You'll be notified when they respond.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF1F6B3B),
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
 
             DetailSection("Location")
             Surface(
@@ -297,6 +392,183 @@ fun AccommodationDetails(
                 TextButton(onClick = { showEnquiry = false }) { Text("Cancel") }
             },
         )
+    }
+
+    if (showReviewDialog) {
+        var rating by remember { mutableIntStateOf(0) }
+        var text by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showReviewDialog = false },
+            title = { Text("Write a review") },
+            text = {
+                Column {
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        (1..5).forEach { star ->
+                            IconButton(onClick = { rating = star }) {
+                                Icon(
+                                    if (star <= rating) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                                    contentDescription = "$star stars",
+                                    tint = if (star <= rating) Color(0xFFF2B33D)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        placeholder = { Text("How was your stay?") },
+                        minLines = 3,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onAddReview(rating, text)
+                        showReviewDialog = false
+                    },
+                    enabled = rating > 0 && text.isNotBlank(),
+                ) { Text("Post review", color = PeersPrimaryIndigo) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReviewDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (showRoommateDialog) {
+        var phone by remember { mutableStateOf("") }
+        var email by remember { mutableStateOf("") }
+        var instagram by remember { mutableStateOf("") }
+        var snapchat by remember { mutableStateOf("") }
+        var message by remember {
+            mutableStateOf("Hi! I'm interested in sharing ${listing.title}. Is it still available?")
+        }
+        val contact = ContactInfo(phone, email, instagram, snapchat)
+        AlertDialog(
+            onDismissRequest = { showRoommateDialog = false },
+            title = { Text("Looking for a roommate") },
+            text = {
+                Column {
+                    Text(
+                        "Share only what you're comfortable with. This is sent to the listing contributor.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = { message = it },
+                        label = { Text("Message") },
+                        minLines = 2,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        label = { Text("Phone (optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email (optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    OutlinedTextField(
+                        value = instagram,
+                        onValueChange = { instagram = it },
+                        label = { Text("Instagram (optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    OutlinedTextField(
+                        value = snapchat,
+                        onValueChange = { snapchat = it },
+                        label = { Text("Snapchat (optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onRoommateRequest(contact, message)
+                        roommateSent = true
+                        showRoommateDialog = false
+                    },
+                    enabled = !contact.isEmpty && message.isNotBlank(),
+                ) { Text("Send request", color = PeersPrimaryIndigo) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRoommateDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ReviewRow(review: AccommodationReview, onReport: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    review.authorName.ifBlank { "Student" },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Row {
+                    repeat(5) { index ->
+                        Icon(
+                            if (index < review.rating) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                            contentDescription = null,
+                            tint = Color(0xFFF2B33D),
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
+            }
+            if (review.text.isNotBlank()) {
+                Text(
+                    review.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (review.reported) {
+                Text(
+                    "Reported",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            } else if (!review.isMine) {
+                TextButton(
+                    onClick = onReport,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text("Report", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }
 

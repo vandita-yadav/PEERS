@@ -34,7 +34,144 @@ data class AccommodationListing(
     val distanceLabel: String get() = "%.1f km".format(distanceKm)
 }
 
-/** Filter state for the listings screen. */
+/** A community review for a stay. */
+data class AccommodationReview(
+    val id: String,
+    val listingId: String,
+    val authorName: String,
+    val rating: Int,
+    val text: String,
+    val createdAt: Long = 0L,
+    val isMine: Boolean = false,
+    val reported: Boolean = false,
+)
+
+/** Contact details a student chooses to share with a roommate request. */
+data class ContactInfo(
+    val phone: String = "",
+    val email: String = "",
+    val instagram: String = "",
+    val snapchat: String = "",
+) {
+    val isEmpty: Boolean
+        get() = phone.isBlank() && email.isBlank() && instagram.isBlank() && snapchat.isBlank()
+
+    fun visibleEntries(): List<Pair<String, String>> = buildList {
+        if (phone.isNotBlank()) add("Phone" to phone)
+        if (email.isNotBlank()) add("Email" to email)
+        if (instagram.isNotBlank()) add("Instagram" to instagram)
+        if (snapchat.isNotBlank()) add("Snapchat" to snapchat)
+    }
+}
+
+enum class RoommateRequestStatus { PENDING, ACCEPTED, DECLINED }
+
+/** A roommate request tied to a listing. */
+data class RoommateRequest(
+    val id: String,
+    val listingId: String,
+    val listingTitle: String,
+    val fromName: String,
+    val fromUid: String,
+    val message: String,
+    val contact: ContactInfo,
+    val incoming: Boolean,
+    val status: RoommateRequestStatus = RoommateRequestStatus.PENDING,
+    val toUid: String = "",
+    val createdAt: Long = 0L,
+)
+
+/** A student looking for a roommate, shown in Find a Roommate. */
+data class RoommateSeeker(
+    val uid: String,
+    val name: String,
+    val course: String,
+    val year: String,
+    val area: String,
+    val budget: Int,
+    val interests: List<String>,
+    val emoji: String,
+    val accent: Color,
+)
+
+val demoReviews = listOf(
+    AccommodationReview(
+        id = "r1",
+        listingId = "demo-1",
+        authorName = "Aisha Verma",
+        rating = 5,
+        text = "Clean rooms and the WiFi actually works. The aunty is lovely.",
+    ),
+    AccommodationReview(
+        id = "r2",
+        listingId = "demo-1",
+        authorName = "Sana Khan",
+        rating = 4,
+        text = "Great location for campus. Water pressure could be better.",
+    ),
+    AccommodationReview(
+        id = "r3",
+        listingId = "demo-5",
+        authorName = "Rohan Mehta",
+        rating = 5,
+        text = "Quiet, safe and close to the mess. Would recommend.",
+    ),
+)
+
+val demoSeekers = listOf(
+    RoommateSeeker(
+        uid = "s1",
+        name = "Meera Nair",
+        course = "Computer Science",
+        year = "2nd Year",
+        area = "Law Gate",
+        budget = 8000,
+        interests = listOf("Music", "Cooking", "Gaming"),
+        emoji = "👩🏽",
+        accent = PeersLavender,
+    ),
+    RoommateSeeker(
+        uid = "s2",
+        name = "Rohan Mehta",
+        course = "Mechanical Engineering",
+        year = "3rd Year",
+        area = "Urban Estate",
+        budget = 10000,
+        interests = listOf("Football", "Fitness", "Coffee"),
+        emoji = "🧔🏽",
+        accent = PeersSky,
+    ),
+    RoommateSeeker(
+        uid = "s3",
+        name = "Ananya Rao",
+        course = "Business Administration",
+        year = "1st Year",
+        area = "Banga Road",
+        budget = 7500,
+        interests = listOf("Reading", "Design", "Dogs"),
+        emoji = "👩🏼",
+        accent = PeersMint,
+    ),
+)
+
+val demoIncomingRequests = listOf(
+    RoommateRequest(
+        id = "demo-req-in",
+        listingId = "demo-1",
+        listingTitle = "Sunrise Girls PG",
+        fromName = "Meera Nair",
+        fromUid = "s1",
+        message = "Hi! I'm looking for a share at Sunrise from December. Would love to connect.",
+        contact = ContactInfo(
+            phone = "+91 98765 43210",
+            email = "meera.nair@example.com",
+            instagram = "@meera.n",
+        ),
+        incoming = true,
+    ),
+)
+
+
 data class AccommodationFilters(
     val query: String = "",
     val maxRent: Int? = null,

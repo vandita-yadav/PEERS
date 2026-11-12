@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
@@ -88,11 +89,16 @@ fun AccommodationScreen(
     val filters by viewModel.filters.collectAsStateWithLifecycle()
     val wishlist by viewModel.wishlist.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val reviews by viewModel.reviews.collectAsStateWithLifecycle()
+    val verifiedIds by viewModel.verifiedIds.collectAsStateWithLifecycle()
+    val reviewedIds by viewModel.reviewedIds.collectAsStateWithLifecycle()
+    val roommateRequests by viewModel.roommateRequests.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var showFilters by remember { mutableStateOf(false) }
     var showAddListing by remember { mutableStateOf(false) }
+    var showRoommates by remember { mutableStateOf(false) }
     var selectedListing by remember { mutableStateOf<AccommodationListing?>(null) }
 
     LaunchedEffect(message) {
@@ -129,6 +135,20 @@ fun AccommodationScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showRoommates = true }) {
+                        BadgedBox(
+                            badge = {
+                                val pending = roommateRequests.count {
+                                    it.incoming && it.status == RoommateRequestStatus.PENDING
+                                }
+                                if (pending > 0) {
+                                    Badge { Text("$pending") }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Rounded.People, contentDescription = "Roommate matching")
+                        }
+                    }
                     IconButton(onClick = { showFilters = true }) {
                         BadgedBox(
                             badge = {
@@ -266,7 +286,8 @@ fun AccommodationScreen(
         }
     }
 
-    selectedListing?.let { listing ->
+    selectedListing?.let { selected ->
+        val listing = listings.firstOrNull { it.id == selected.id } ?: selected
         ModalBottomSheet(
             onDismissRequest = { selectedListing = null },
             sheetState = sheetState,
@@ -275,9 +296,26 @@ fun AccommodationScreen(
             AccommodationDetails(
                 listing = listing,
                 wishlisted = listing.id in wishlist,
+                isVerifiedByMe = listing.id in verifiedIds,
+                isReviewed = listing.id in reviewedIds,
+                reviews = reviews[listing.id].orEmpty(),
                 onWishlist = { viewModel.toggleWishlist(listing.id) },
+                onMarkGenuine = { viewModel.markGenuine(listing) },
+                onRemoveGenuine = { viewModel.unmarkGenuine(listing) },
+                onAddReview = { rating, text -> viewModel.addReview(listing, rating, text) },
+                onReportReview = { reviewId -> viewModel.reportReview(listing.id, reviewId) },
+                onRoommateRequest = { contact, text ->
+                    viewModel.sendRoommateRequest(listing, contact, text)
+                },
             )
         }
+    }
+
+    if (showRoommates) {
+        RoommateScreen(
+            onBack = { showRoommates = false },
+            viewModel = viewModel,
+        )
     }
 
     if (showAddListing) {
