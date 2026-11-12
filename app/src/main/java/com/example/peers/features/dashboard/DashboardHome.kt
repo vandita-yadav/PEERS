@@ -67,6 +67,7 @@ private val homeDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("
 fun DashboardHome(
     viewModel: DashboardViewModel,
     onOpenAccommodation: () -> Unit = {},
+    onOpenBudget: () -> Unit = {},
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
@@ -134,7 +135,10 @@ fun DashboardHome(
             SectionHeader(title = "Discover What Interests You", actionLabel = "", onAction = { })
             DiscoverGrid(
                 onOpen = { item ->
-                    if (item.title == "Accommodation") onOpenAccommodation()
+                    when (item.title) {
+                        "Accommodation" -> onOpenAccommodation()
+                        "Budget & Finance" -> onOpenBudget()
+                    }
                 }
             )
         }
