@@ -38,11 +38,14 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.features.auth.AuthViewModel
+import com.example.peers.features.accommodation.AccommodationScreen
 import com.example.peers.features.dashboard.components.PeersHeader
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -85,8 +89,18 @@ fun DashboardScreen(
     val scope = rememberCoroutineScope()
     var currentTab by remember { mutableStateOf(DashTab.HOME) }
     var showNotifications by remember { mutableStateOf(false) }
+    var showAccommodation by remember { mutableStateOf(false) }
     val user by dashboardViewModel.user.collectAsStateWithLifecycle()
     val unreadCount by dashboardViewModel.unreadCount.collectAsStateWithLifecycle()
+    val actionMessage by dashboardViewModel.actionMessage.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(actionMessage) {
+        actionMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            dashboardViewModel.consumeActionMessage()
+        }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -101,16 +115,26 @@ fun DashboardScreen(
                     showNotifications = true
                     scope.launch { drawerState.close() }
                 },
+                onNavigateToAccommodation = {
+                    showAccommodation = true
+                    showNotifications = false
+                    scope.launch { drawerState.close() }
+                },
             )
         },
     ) {
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     DashTab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = currentTab == tab,
-                            onClick = { currentTab = tab },
+                            onClick = {
+                                currentTab = tab
+                                showNotifications = false
+                                showAccommodation = false
+                            },
                             icon = {
                                 when (tab) {
                                     DashTab.HOME -> Icon(Icons.Rounded.Home, null)
@@ -138,6 +162,11 @@ fun DashboardScreen(
                     onBack = { showNotifications = false },
                     modifier = Modifier.padding(innerPadding),
                 )
+            } else if (showAccommodation) {
+                AccommodationScreen(
+                    onBack = { showAccommodation = false },
+                    modifier = Modifier.padding(innerPadding),
+                )
             } else {
                 Column(Modifier.padding(innerPadding)) {
                     PeersHeader(
@@ -148,7 +177,10 @@ fun DashboardScreen(
                     )
                     Box(Modifier.fillMaxSize()) {
                         when (currentTab) {
-                            DashTab.HOME -> DashboardHome(dashboardViewModel)
+                            DashTab.HOME -> DashboardHome(
+                                viewModel = dashboardViewModel,
+                                onOpenAccommodation = { showAccommodation = true },
+                            )
                             DashTab.COMMUNITY -> PlaceholderTab("🫂", "Community is coming next — connections & feed.")
                             DashTab.EVENTS -> PlaceholderTab("🎪", "Full event calendar arrives with the Events phase.")
                             DashTab.PROFILE -> PlaceholderTab("🧑", "Your public profile page is next.")
@@ -187,6 +219,7 @@ private fun PeersDrawerSheet(
     onSignOut: () -> Unit,
     onClose: () -> Unit,
     onNavigateToNotifications: () -> Unit,
+    onNavigateToAccommodation: () -> Unit,
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val isDark = themeMode == PeersThemeMode.NeonDark
@@ -256,6 +289,7 @@ private fun PeersDrawerSheet(
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                 DrawerSectionLabel("EXPLORE")
                 DrawerItem("🔔", "Notifications", onClick = onNavigateToNotifications)
+                DrawerItem("🏠", "Accommodation", onClick = onNavigateToAccommodation)
                 DrawerItem("🎪", "Events") { onClose() }
                 DrawerItem("💰", "Budget Planner") { onClose() }
 

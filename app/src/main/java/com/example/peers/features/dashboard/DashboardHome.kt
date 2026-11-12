@@ -2,6 +2,7 @@ package com.example.peers.features.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,10 +26,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Handshake
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -44,12 +45,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.peers.features.community.ConnectionState
 import com.example.peers.features.dashboard.components.EventDot
 import com.example.peers.ui.theme.PeersLavender
+import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
+import com.example.peers.ui.theme.PeersSky
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -59,10 +64,28 @@ private val homeDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("
 
 /** Content of the Home tab: dates, top events, PYMK, discover grid. */
 @Composable
-fun DashboardHome(viewModel: DashboardViewModel) {
+fun DashboardHome(
+    viewModel: DashboardViewModel,
+    onOpenAccommodation: () -> Unit = {},
+) {
     val user by viewModel.user.collectAsStateWithLifecycle()
+    val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
+    var previewPeer by remember { mutableStateOf<SuggestedPeer?>(null) }
+
+    previewPeer?.let { peer ->
+        val me = user
+        if (me != null) {
+            PeerProfileSheet(
+                peer = peer,
+                me = me,
+                connectionState = connectionStates[peer.uid] ?: ConnectionState.NONE,
+                onConnect = { viewModel.connect(peer) },
+                onDismiss = { previewPeer = null },
+            )
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -97,13 +120,23 @@ fun DashboardHome(viewModel: DashboardViewModel) {
                     .map { it to it.scoreFor(me) }
                     .sortedByDescending { it.second }
                     .take(3)
-                PeersRow(ranked)
+                PeersRow(
+                    ranked = ranked,
+                    me = me,
+                    connectionStates = connectionStates,
+                    onOpenProfile = { previewPeer = it },
+                    onConnect = { viewModel.connect(it) },
+                )
             }
         }
 
         item {
             SectionHeader(title = "Discover What Interests You", actionLabel = "", onAction = { })
-            DiscoverGrid()
+            DiscoverGrid(
+                onOpen = { item ->
+                    if (item.title == "Accommodation") onOpenAccommodation()
+                }
+            )
         }
     }
 }
@@ -182,14 +215,13 @@ private fun EventCard(event: DashboardEvent) {
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        modifier = Modifier.width(230.dp),
+        modifier = Modifier.width(250.dp),
     ) {
         Column(Modifier.padding(14.dp)) {
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(72.dp)
+                    .height(88.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         Brush.linearGradient(
@@ -197,8 +229,39 @@ private fun EventCard(event: DashboardEvent) {
                         )
                     ),
             ) {
-                Text(event.emoji, fontSize = 34.sp)
+                // Date badge
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    modifier = Modifier.padding(10.dp),
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            event.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = PeersPrimaryIndigo,
+                        )
+                        Text(
+                            "${event.date.dayOfMonth}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+                // Big emoji
+                Text(
+                    event.emoji,
+                    fontSize = 40.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 18.dp),
+                )
             }
+
             Text(
                 event.title,
                 style = MaterialTheme.typography.titleMedium,
@@ -208,23 +271,35 @@ private fun EventCard(event: DashboardEvent) {
                 modifier = Modifier.padding(top = 10.dp),
             )
             Text(
-                "${event.date.format(homeDateFormatter)} · ${event.time}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                event.organizer,
+                style = MaterialTheme.typography.labelMedium,
+                color = PeersPrimaryIndigo,
+                modifier = Modifier.padding(top = 2.dp),
             )
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 10.dp),
+            ) {
+                AttendeeAvatarStack(event.attendees)
+                Text(
+                    " ${event.attendees} going",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 6.dp),
             ) {
                 Icon(
-                    Icons.Rounded.Handshake,
+                    Icons.Rounded.Place,
                     contentDescription = null,
-                    tint = PeersPrimaryIndigo,
-                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
                 )
                 Text(
-                    " ${event.attendees} going · ${event.location}",
+                    " ${event.location} · ${event.time}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -234,44 +309,125 @@ private fun EventCard(event: DashboardEvent) {
     }
 }
 
+/** Overlapping pastel bubbles suggesting who's going. */
+@Composable
+private fun AttendeeAvatarStack(count: Int) {
+    val emojis = listOf("🧑🏿", "👩🏽", "🧔🏽")
+    val colors = listOf(PeersLavender, PeersPrimaryIndigo, com.example.peers.ui.theme.PeersSky)
+    Row {
+        emojis.forEachIndexed { index, emoji ->
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset(x = if (index == 0) 0.dp else (-8).dp)
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(colors[index])
+                    .border(
+                        2.dp,
+                        MaterialTheme.colorScheme.surface,
+                        CircleShape,
+                    ),
+            ) {
+                Text(emoji, fontSize = 11.sp)
+            }
+        }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .offset(x = (-8).dp)
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
+        ) {
+            Text(
+                "+${(count - emojis.size).coerceAtLeast(0)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp,
+            )
+        }
+    }
+}
+
 // endregion
 
 // region — People You May Know ---------------------------------------------------------------
 
 @Composable
-private fun PeersRow(ranked: List<Pair<SuggestedPeer, Int>>) {
+private fun PeersRow(
+    ranked: List<Pair<SuggestedPeer, Int>>,
+    me: DashboardUser,
+    connectionStates: Map<String, ConnectionState>,
+    onOpenProfile: (SuggestedPeer) -> Unit,
+    onConnect: (SuggestedPeer) -> Unit,
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(ranked, key = { it.first.uid }) { (peer, score) ->
-            PeerCard(peer, score)
+            PeerCard(
+                peer = peer,
+                score = score,
+                me = me,
+                state = connectionStates[peer.uid] ?: ConnectionState.NONE,
+                onOpenProfile = { onOpenProfile(peer) },
+                onConnect = { onConnect(peer) },
+            )
         }
     }
 }
 
 @Composable
-private fun PeerCard(peer: SuggestedPeer, score: Int) {
+private fun PeerCard(
+    peer: SuggestedPeer,
+    score: Int,
+    me: DashboardUser,
+    state: ConnectionState,
+    onOpenProfile: () -> Unit,
+    onConnect: () -> Unit,
+) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        modifier = Modifier.width(190.dp),
+        modifier = Modifier.width(190.dp).clickable(onClick = onOpenProfile),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         ) {
             val emojis = listOf("🧑🏿", "👩🏿", "👦🏽", "👧🏼", "👩🏽", "🧔🏽", "🧕🏾")
-            val pastels = listOf(PeersLavender, PeersPrimaryIndigo, com.example.peers.ui.theme.PeersSky)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(pastels[peer.avatarIndex.mod(pastels.size)]),
-            ) {
-                Text(emojis[peer.avatarIndex.mod(emojis.size)], fontSize = 28.sp)
+            val pastels = listOf(PeersLavender, PeersSky, MaterialTheme.colorScheme.surfaceVariant)
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(CircleShape)
+                        .background(pastels[peer.avatarIndex.mod(pastels.size)]),
+                ) {
+                    Text(emojis[peer.avatarIndex.mod(emojis.size)], fontSize = 30.sp)
+                }
+                // Mini match badge, overlapping the avatar's lower edge.
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = PeersPrimaryIndigo,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.surface),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 4.dp, bottom = 2.dp),
+                ) {
+                    Text(
+                        "${matchPercent(score)}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                }
             }
             Text(
                 peer.name,
@@ -279,6 +435,7 @@ private fun PeerCard(peer: SuggestedPeer, score: Int) {
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 8.dp),
+                maxLines = 1,
             )
             Text(
                 "${peer.course} · ${peer.year}",
@@ -286,28 +443,27 @@ private fun PeerCard(peer: SuggestedPeer, score: Int) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
+            val topReason = peer.matchReasons(me).firstOrNull()
             Surface(
                 shape = RoundedCornerShape(50),
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
             ) {
                 Text(
-                    if (score >= 45) "⭐ Great match" else "✨ Matches you",
+                    topReason?.let { "${it.emoji} ${it.label}" } ?: "✨ Matches you",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 )
             }
-            FilledTonalButton(
-                onClick = { /* Connect flow → Community phase */ },
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = PeersPrimaryIndigo,
-                    contentColor = Color.White,
-                ),
+            ConnectActionButton(
+                state = state,
+                onConnect = onConnect,
+                compact = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-            ) {
-                Text("Connect")
-            }
+            )
         }
     }
 }
@@ -316,19 +472,24 @@ private fun PeerCard(peer: SuggestedPeer, score: Int) {
 
 // region — Discover grid ---------------------------------------------------------------------
 
-private data class DiscoverItem(val emoji: String, val title: String, val subtitle: String)
+private data class DiscoverItem(
+    val emoji: String,
+    val title: String,
+    val subtitle: String,
+    val accent: Color,
+)
 
 private val discoverItems = listOf(
-    DiscoverItem("🤝", "Make Friends", "Find peers near you"),
-    DiscoverItem("🎪", "Events", "What's happening on campus"),
-    DiscoverItem("🏠", "Accommodation", "Rooms & flatmates"),
-    DiscoverItem("💼", "Jobs & Internships", "Career opportunities"),
-    DiscoverItem("💰", "Budget & Finance", "Split expenses smartly"),
-    DiscoverItem("🧠", "University Help", "Notes & mentors"),
+    DiscoverItem("🤝", "Make Friends", "Find peers near you", PeersLavender),
+    DiscoverItem("🎪", "Events", "What's happening on campus", PeersSky),
+    DiscoverItem("🏠", "Accommodation", "Rooms & flatmates", PeersMint),
+    DiscoverItem("💼", "Jobs & Internships", "Career opportunities", Color(0xFFFFE3C7)),
+    DiscoverItem("💰", "Budget & Finance", "Split expenses smartly", Color(0xFFFFD9E2)),
+    DiscoverItem("🧠", "University Help", "Notes & mentors", Color(0xFFE4DDFF)),
 )
 
 @Composable
-private fun DiscoverGrid() {
+private fun DiscoverGrid(onOpen: (DiscoverItem) -> Unit) {
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.padding(horizontal = 20.dp),
@@ -336,32 +497,61 @@ private fun DiscoverGrid() {
         discoverItems.chunked(2).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 rowItems.forEach { item ->
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        modifier = Modifier.weight(1f).clickable { },
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text(item.emoji, fontSize = 26.sp)
-                            Text(
-                                item.title,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                            Text(
-                                item.subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                        }
-                    }
+                    DiscoverCard(item, modifier = Modifier.weight(1f), onClick = { onOpen(item) })
                 }
                 if (rowItems.size == 1) Spacer(Modifier.weight(1f))
             }
+        }
+    }
+}
+
+@Composable
+private fun DiscoverCard(
+    item: DiscoverItem,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier.clickable(onClick = onClick),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(item.accent),
+                ) {
+                    Text(item.emoji, fontSize = 20.sp)
+                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            Text(
+                item.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Text(
+                item.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                minLines = 2,
+            )
         }
     }
 }
