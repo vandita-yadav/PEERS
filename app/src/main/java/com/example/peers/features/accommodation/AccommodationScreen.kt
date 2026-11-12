@@ -644,6 +644,18 @@ private fun FilterSheet(
             }
         }
 
+        FilterLabel("Availability")
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                FilterChip(
+                    selected = draft.availableNow,
+                    onClick = { draft = draft.copy(availableNow = !draft.availableNow) },
+                    label = { Text("Available now") },
+                    colors = filterChipColors(),
+                )
+            }
+        }
+
         FilterLabel("Amenities")
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(amenityOptions) { amenity ->

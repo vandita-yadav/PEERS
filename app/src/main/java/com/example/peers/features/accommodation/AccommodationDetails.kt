@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -114,6 +115,25 @@ fun AccommodationDetails(
                         if (wishlisted) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         contentDescription = "Wishlist",
                         tint = if (wishlisted) Color(0xFFE0556B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = {
+                    val share = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(
+                            Intent.EXTRA_TEXT,
+                            "Check out ${listing.title} near campus on PEERS — " +
+                                "${listing.rentLabel}, ${listing.distanceLabel} away, ${listing.address}.",
+                        )
+                    }
+                    runCatching {
+                        context.startActivity(Intent.createChooser(share, "Share this stay"))
+                    }
+                }) {
+                    Icon(
+                        Icons.Rounded.Share,
+                        contentDescription = "Share",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

@@ -180,6 +180,7 @@ data class AccommodationFilters(
     val gender: String? = null,
     val furnishing: String? = null,
     val amenities: Set<String> = emptySet(),
+    val availableNow: Boolean = false,
 ) {
     val activeCount: Int
         get() = listOf(
@@ -189,6 +190,7 @@ data class AccommodationFilters(
             gender != null,
             furnishing != null,
             amenities.isNotEmpty(),
+            availableNow,
         ).count { it }
 
     fun matches(listing: AccommodationListing): Boolean {
@@ -202,6 +204,7 @@ data class AccommodationFilters(
         if (gender != null && listing.genderPreference != gender && listing.genderPreference != "Any") return false
         if (furnishing != null && listing.furnishing != furnishing) return false
         if (amenities.isNotEmpty() && !listing.amenities.containsAll(amenities)) return false
+        if (availableNow && !listing.availability.contains("now", ignoreCase = true)) return false
         return true
     }
 }
