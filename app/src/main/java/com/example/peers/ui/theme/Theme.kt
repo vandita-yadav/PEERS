@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-enum class PeersThemeMode { NeonDark, AestheticLight }
+enum class PeersThemeMode { SystemDefault, AestheticLight, NeonDark }
 
 private val NeonDarkColorScheme = darkColorScheme(
     primary = PeersPrimaryIndigo,
@@ -36,10 +36,14 @@ private val AestheticLightColorScheme = lightColorScheme(
 
 @Composable
 fun PeersTheme(
-    mode: PeersThemeMode = PeersThemeMode.AestheticLight,
+    mode: PeersThemeMode = PeersThemeMode.SystemDefault,
     content: @Composable () -> Unit
 ) {
-    val darkTheme = mode == PeersThemeMode.NeonDark
+    val darkTheme = when (mode) {
+        PeersThemeMode.NeonDark -> true
+        PeersThemeMode.AestheticLight -> false
+        PeersThemeMode.SystemDefault -> androidx.compose.foundation.isSystemInDarkTheme()
+    }
     val colorScheme = if (darkTheme) NeonDarkColorScheme else AestheticLightColorScheme
 
     val view = LocalView.current

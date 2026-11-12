@@ -62,6 +62,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private var connectionListener: ListenerRegistration? = null
     private var notificationListener: ListenerRegistration? = null
     private var savedEventsListener: ListenerRegistration? = null
+    private var userProfileListener: ListenerRegistration? = null
 
     init {
         loadProfile()
@@ -109,6 +110,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val snap = firestore.collection("users").document(uid).get().await()
                 val authUser = auth.currentUser
+                val avatarIdx = (snap.get("avatarIndex") as? Number)?.toInt()
                 _user.value = DashboardUser(
                     uid = uid,
                     name = snap.getString("name").orEmpty().ifEmpty { authUser?.displayName ?: "Peer" },
@@ -119,8 +121,15 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     city = snap.getString("currentCity").orEmpty(),
                     photoUrl = snap.getString("photoUrl")?.takeIf { it.isNotBlank() }
                         ?: authUser?.photoUrl?.toString(),
-                    interests = snap.get("interests") as? List<String> ?: emptyList(),
-                    needs = snap.get("needs") as? List<String> ?: emptyList(),
+                    interests = (snap.get("interests") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                    needs = (snap.get("needs") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                    countryOfOrigin = snap.getString("countryOfOrigin").orEmpty(),
+                    currentCountry = snap.getString("currentCountry").orEmpty(),
+                    degreeLevel = snap.getString("degreeLevel").orEmpty(),
+                    expectedGraduationYear = snap.getString("expectedGraduationYear").orEmpty(),
+                    bio = snap.getString("bio").orEmpty(),
+                    languagesKnown = (snap.get("languagesKnown") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                    avatarIndex = avatarIdx,
                 )
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to load profile."
@@ -131,7 +140,35 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun startLiveListeners() {
-        if (auth.currentUser == null) return
+        val uid = auth.currentUser?.uid ?: return
+        runCatching {
+            userProfileListener?.remove()
+            userProfileListener = firestore.collection("users").document(uid).addSnapshotListener { snap, err ->
+                if (err != null || snap == null || !snap.exists()) return@addSnapshotListener
+                val authUser = auth.currentUser
+                val avatarIdx = (snap.get("avatarIndex") as? Number)?.toInt()
+                _user.value = DashboardUser(
+                    uid = uid,
+                    name = snap.getString("name").orEmpty().ifEmpty { authUser?.displayName ?: "Peer" },
+                    email = snap.getString("email").orEmpty().ifEmpty { authUser?.email.orEmpty() },
+                    university = snap.getString("university").orEmpty(),
+                    course = snap.getString("course").orEmpty(),
+                    year = snap.getString("yearOfStudy").orEmpty(),
+                    city = snap.getString("currentCity").orEmpty(),
+                    photoUrl = snap.getString("photoUrl")?.takeIf { it.isNotBlank() }
+                        ?: authUser?.photoUrl?.toString(),
+                    interests = (snap.get("interests") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                    needs = (snap.get("needs") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                    countryOfOrigin = snap.getString("countryOfOrigin").orEmpty(),
+                    currentCountry = snap.getString("currentCountry").orEmpty(),
+                    degreeLevel = snap.getString("degreeLevel").orEmpty(),
+                    expectedGraduationYear = snap.getString("expectedGraduationYear").orEmpty(),
+                    bio = snap.getString("bio").orEmpty(),
+                    languagesKnown = (snap.get("languagesKnown") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                    avatarIndex = avatarIdx,
+                )
+            }
+        }
         runCatching {
             connectionListener?.remove()
             connectionListener = connections.observeConnections { states ->
@@ -217,6 +254,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     )
 
     override fun onCleared() {
+        userProfileListener?.remove()
         connectionListener?.remove()
         notificationListener?.remove()
         savedEventsListener?.remove()

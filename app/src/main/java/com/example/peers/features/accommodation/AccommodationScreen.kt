@@ -1,5 +1,7 @@
 package com.example.peers.features.accommodation
 
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -95,6 +97,8 @@ fun AccommodationScreen(
     val roommateRequests by viewModel.roommateRequests.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    BackHandler { onBack() }
 
     var showFilters by remember { mutableStateOf(false) }
     var showAddListing by remember { mutableStateOf(false) }

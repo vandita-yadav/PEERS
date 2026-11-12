@@ -1,5 +1,7 @@
 package com.example.peers.features.dashboard
 
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,6 +71,8 @@ fun NotificationsScreen(
 ) {
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
+
+    BackHandler { onBack() }
 
     // Local resolution of inline Accept/Decline (demo peers; real backend in Community phase).
     var resolvedIds by remember { mutableStateOf<Set<String>>(emptySet()) }

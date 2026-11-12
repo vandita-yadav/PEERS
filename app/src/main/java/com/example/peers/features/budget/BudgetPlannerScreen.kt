@@ -1,5 +1,7 @@
 package com.example.peers.features.budget
 
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -106,6 +108,8 @@ fun BudgetPlannerScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    BackHandler { onBack() }
 
     var showExpenseEditor by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<ExpenseEntity?>(null) }

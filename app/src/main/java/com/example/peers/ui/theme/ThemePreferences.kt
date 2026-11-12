@@ -11,7 +11,7 @@ object ThemePreferences {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_THEME, null)
         return runCatching { PeersThemeMode.valueOf(raw ?: "") }
-            .getOrDefault(PeersThemeMode.AestheticLight)
+            .getOrDefault(PeersThemeMode.SystemDefault)
     }
 
     fun save(context: Context, mode: PeersThemeMode) {
