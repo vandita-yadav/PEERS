@@ -37,18 +37,19 @@ class MainActivity : ComponentActivity() {
             var themeMode by remember {
                 mutableStateOf(ThemePreferences.load(applicationContext))
             }
+            val onSetTheme: (PeersThemeMode) -> Unit = { newMode ->
+                themeMode = newMode
+                ThemePreferences.save(applicationContext, newMode)
+            }
             PeersTheme(mode = themeMode) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     PeersAuthApp(
                         themeMode = themeMode,
                         onToggleTheme = {
-                            themeMode = if (themeMode == PeersThemeMode.AestheticLight) {
-                                PeersThemeMode.NeonDark
-                            } else {
-                                PeersThemeMode.AestheticLight
-                            }
-                            ThemePreferences.save(applicationContext, themeMode)
-                        }
+                            val next = if (themeMode == PeersThemeMode.AestheticLight) PeersThemeMode.NeonDark else PeersThemeMode.AestheticLight
+                            onSetTheme(next)
+                        },
+                        onSetTheme = onSetTheme
                     )
                 }
             }
@@ -57,7 +58,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun PeersAuthApp(themeMode: PeersThemeMode, onToggleTheme: () -> Unit) {
+private fun PeersAuthApp(
+    themeMode: PeersThemeMode,
+    onToggleTheme: () -> Unit,
+    onSetTheme: (PeersThemeMode) -> Unit,
+) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val authState by authViewModel.authState.collectAsState()
@@ -130,6 +135,7 @@ private fun PeersAuthApp(themeMode: PeersThemeMode, onToggleTheme: () -> Unit) {
             DashboardScreen(
                 themeMode = themeMode,
                 onToggleTheme = onToggleTheme,
+                onSetTheme = onSetTheme,
                 onSignOut = {
                     authViewModel.signOut(navController.context as ComponentActivity)
                     navController.navigate("welcome") { popUpTo(0) { inclusive = true } }

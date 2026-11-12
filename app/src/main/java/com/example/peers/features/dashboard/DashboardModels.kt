@@ -83,6 +83,13 @@ data class DashboardUser(
     val photoUrl: String?,
     val interests: List<String>,
     val needs: List<String>,
+    val countryOfOrigin: String = "",
+    val currentCountry: String = "",
+    val degreeLevel: String = "",
+    val expectedGraduationYear: String = "",
+    val bio: String = "",
+    val languagesKnown: List<String> = emptyList(),
+    val avatarIndex: Int? = null,
 )
 
 /** A lightweight in-app notification entry. */
