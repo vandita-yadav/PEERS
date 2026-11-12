@@ -25,11 +25,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,9 +70,11 @@ private val homeDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("
 fun DashboardHome(
     viewModel: DashboardViewModel,
     onOpenAccommodation: () -> Unit = {},
+    onOpenBudget: () -> Unit = {},
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
+    val savedEventIds by viewModel.savedEventIds.collectAsStateWithLifecycle()
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
     var previewPeer by remember { mutableStateOf<SuggestedPeer?>(null) }
@@ -106,7 +111,11 @@ fun DashboardHome(
                     message = "No events on this day.\nBrowse the full calendar instead!",
                 )
             } else {
-                EventsRow(shown)
+                EventsRow(
+                    events = shown,
+                    savedEventIds = savedEventIds,
+                    onToggleSaved = viewModel::toggleSavedEvent,
+                )
             }
         }
 
@@ -134,7 +143,10 @@ fun DashboardHome(
             SectionHeader(title = "Discover What Interests You", actionLabel = "", onAction = { })
             DiscoverGrid(
                 onOpen = { item ->
-                    if (item.title == "Accommodation") onOpenAccommodation()
+                    when (item.title) {
+                        "Accommodation" -> onOpenAccommodation()
+                        "Budget & Finance" -> onOpenBudget()
+                    }
                 }
             )
         }
@@ -198,19 +210,31 @@ private fun DateSlider(
 // region — Top Events ------------------------------------------------------------------------
 
 @Composable
-private fun EventsRow(events: List<DashboardEvent>) {
+private fun EventsRow(
+    events: List<DashboardEvent>,
+    savedEventIds: Set<String>,
+    onToggleSaved: (DashboardEvent) -> Unit,
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(events, key = { it.id }) { event ->
-            EventCard(event)
+            EventCard(
+                event = event,
+                isSaved = event.id in savedEventIds,
+                onToggleSaved = { onToggleSaved(event) },
+            )
         }
     }
 }
 
 @Composable
-private fun EventCard(event: DashboardEvent) {
+private fun EventCard(
+    event: DashboardEvent,
+    isSaved: Boolean,
+    onToggleSaved: () -> Unit,
+) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -249,6 +273,28 @@ private fun EventCard(event: DashboardEvent) {
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+                // Save for later — cached in Room for offline access.
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                ) {
+                    IconButton(onClick = onToggleSaved, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = if (isSaved) Icons.Rounded.Bookmark
+                            else Icons.Rounded.BookmarkBorder,
+                            contentDescription = if (isSaved) {
+                                "Remove ${event.title} from saved events"
+                            } else {
+                                "Save ${event.title} for later"
+                            },
+                            tint = PeersPrimaryIndigo,
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }

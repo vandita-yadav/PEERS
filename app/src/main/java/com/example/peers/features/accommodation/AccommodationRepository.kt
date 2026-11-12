@@ -19,10 +19,6 @@ class AccommodationRepository(
 
     private fun listingsRef() = firestore.collection("accommodations")
 
-    private fun wishlistRef() = uid?.let {
-        firestore.collection("users").document(it).collection("wishlist")
-    }
-
     /** Live listings, newest first. */
     fun observeListings(onChange: (List<AccommodationListing>) -> Unit): ListenerRegistration {
         return listingsRef()
@@ -36,29 +32,8 @@ class AccommodationRepository(
             }
     }
 
-    /** Live wishlist ids for the signed-in user. */
-    fun observeWishlist(onChange: (Set<String>) -> Unit): ListenerRegistration? {
-        val ref = wishlistRef() ?: return null
-        return ref.addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                android.util.Log.w("PeersAccommodation", "wishlist listener failed", error)
-                return@addSnapshotListener
-            }
-            onChange(snapshot?.documents?.map { it.id }?.toSet().orEmpty())
-        }
-    }
-
     suspend fun addListing(listing: AccommodationListing) {
         listingsRef().document(listing.id).set(listing.toMap()).await()
-    }
-
-    suspend fun setWishlisted(listingId: String, wishlisted: Boolean) {
-        val ref = wishlistRef()?.document(listingId) ?: error("Not signed in")
-        if (wishlisted) {
-            ref.set(mapOf("addedAt" to FieldValue.serverTimestamp())).await()
-        } else {
-            ref.delete().await()
-        }
     }
 
     /** Records one genuine-verification per student and bumps the listing counter. */

@@ -1,7 +1,9 @@
 package com.example.peers.features.accommodation
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.peers.features.offline.OfflineCacheRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,8 +12,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class AccommodationViewModel : ViewModel() {
+class AccommodationViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AccommodationRepository()
+    private val cache = OfflineCacheRepository.get(application)
 
     private val _listings = MutableStateFlow(demoListings)
     val listings: StateFlow<List<AccommodationListing>> = _listings.asStateFlow()
@@ -49,6 +52,9 @@ class AccommodationViewModel : ViewModel() {
     private var requestsListeners: List<ListenerRegistration> = emptyList()
 
     init {
+        viewModelScope.launch {
+            cache.observeWishlist().collect { ids -> _wishlist.value = ids }
+        }
         runCatching {
             listingsListener = repository.observeListings { remote ->
                 remoteListings = remote
@@ -56,7 +62,9 @@ class AccommodationViewModel : ViewModel() {
             }
         }
         runCatching {
-            wishlistListener = repository.observeWishlist { ids -> _wishlist.value = ids }
+            wishlistListener = cache.observeRemoteWishlist { ids ->
+                viewModelScope.launch { cache.hydrateWishlist(ids) }
+            }
         }
         runCatching {
             requestsListeners = repository.observeRoommateRequests { remote ->
@@ -94,14 +102,16 @@ class AccommodationViewModel : ViewModel() {
 
     fun toggleWishlist(listingId: String) {
         val nowWishlisted = listingId !in _wishlist.value
-        _wishlist.value = if (nowWishlisted) _wishlist.value + listingId else _wishlist.value - listingId
         viewModelScope.launch {
-            runCatching { repository.setWishlisted(listingId, nowWishlisted) }
-                .onFailure {
-                    _wishlist.value =
-                        if (nowWishlisted) _wishlist.value - listingId else _wishlist.value + listingId
-                    _message.value = "Wishlist couldn't sync. Check your connection."
+            val synced = runCatching { cache.setWishlisted(listingId, nowWishlisted) }
+                .getOrDefault(false)
+            if (!synced) {
+                _message.value = if (nowWishlisted) {
+                    "Saved offline — your wishlist will sync when you're back online."
+                } else {
+                    "Removed offline — the change will sync when you're back online."
                 }
+            }
         }
     }
 

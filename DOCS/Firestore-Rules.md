@@ -37,6 +37,11 @@ service cloud.firestore {
       match /wishlist/{listingId} {
         allow read, write: if isOwner(userId);
       }
+
+      // Events saved for later (offline-first cache mirrors this).
+      match /savedEvents/{eventId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // Community-contributed accommodation inventory.

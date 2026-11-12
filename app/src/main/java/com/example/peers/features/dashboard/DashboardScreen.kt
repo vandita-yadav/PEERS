@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.features.auth.AuthViewModel
 import com.example.peers.features.accommodation.AccommodationScreen
+import com.example.peers.features.budget.BudgetPlannerScreen
 import com.example.peers.features.dashboard.components.PeersHeader
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -90,6 +91,7 @@ fun DashboardScreen(
     var currentTab by remember { mutableStateOf(DashTab.HOME) }
     var showNotifications by remember { mutableStateOf(false) }
     var showAccommodation by remember { mutableStateOf(false) }
+    var showBudget by remember { mutableStateOf(false) }
     val user by dashboardViewModel.user.collectAsStateWithLifecycle()
     val unreadCount by dashboardViewModel.unreadCount.collectAsStateWithLifecycle()
     val actionMessage by dashboardViewModel.actionMessage.collectAsStateWithLifecycle()
@@ -118,6 +120,13 @@ fun DashboardScreen(
                 onNavigateToAccommodation = {
                     showAccommodation = true
                     showNotifications = false
+                    showBudget = false
+                    scope.launch { drawerState.close() }
+                },
+                onNavigateToBudget = {
+                    showBudget = true
+                    showNotifications = false
+                    showAccommodation = false
                     scope.launch { drawerState.close() }
                 },
             )
@@ -134,6 +143,7 @@ fun DashboardScreen(
                                 currentTab = tab
                                 showNotifications = false
                                 showAccommodation = false
+                                showBudget = false
                             },
                             icon = {
                                 when (tab) {
@@ -167,6 +177,11 @@ fun DashboardScreen(
                     onBack = { showAccommodation = false },
                     modifier = Modifier.padding(innerPadding),
                 )
+            } else if (showBudget) {
+                BudgetPlannerScreen(
+                    onBack = { showBudget = false },
+                    modifier = Modifier.padding(innerPadding),
+                )
             } else {
                 Column(Modifier.padding(innerPadding)) {
                     PeersHeader(
@@ -180,6 +195,7 @@ fun DashboardScreen(
                             DashTab.HOME -> DashboardHome(
                                 viewModel = dashboardViewModel,
                                 onOpenAccommodation = { showAccommodation = true },
+                                onOpenBudget = { showBudget = true },
                             )
                             DashTab.COMMUNITY -> PlaceholderTab("🫂", "Community is coming next — connections & feed.")
                             DashTab.EVENTS -> PlaceholderTab("🎪", "Full event calendar arrives with the Events phase.")
@@ -220,6 +236,7 @@ private fun PeersDrawerSheet(
     onClose: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToAccommodation: () -> Unit,
+    onNavigateToBudget: () -> Unit,
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val isDark = themeMode == PeersThemeMode.NeonDark
@@ -291,7 +308,7 @@ private fun PeersDrawerSheet(
                 DrawerItem("🔔", "Notifications", onClick = onNavigateToNotifications)
                 DrawerItem("🏠", "Accommodation", onClick = onNavigateToAccommodation)
                 DrawerItem("🎪", "Events") { onClose() }
-                DrawerItem("💰", "Budget Planner") { onClose() }
+                DrawerItem("💰", "Budget Planner", onClick = onNavigateToBudget)
 
                 DrawerSectionLabel("PREFERENCES")
                 // Dark theme switch row
