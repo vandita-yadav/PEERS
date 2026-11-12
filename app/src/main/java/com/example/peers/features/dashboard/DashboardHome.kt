@@ -73,6 +73,7 @@ fun DashboardHome(
     onOpenBudget: () -> Unit = {},
     onOpenEvents: (LocalDate?) -> Unit = {},
     onOpenCommunity: () -> Unit = {},
+    onOpenChecklist: () -> Unit = {},
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
@@ -150,6 +151,7 @@ fun DashboardHome(
                         "Events" -> onOpenEvents(null)
                         "Accommodation" -> onOpenAccommodation()
                         "Budget & Finance" -> onOpenBudget()
+                        "Student Checklist" -> onOpenChecklist()
                     }
                 }
             )
@@ -535,7 +537,7 @@ private val discoverItems = listOf(
     DiscoverItem("🏠", "Accommodation", "Rooms & flatmates", PeersMint),
     DiscoverItem("💼", "Jobs & Internships", "Career opportunities", Color(0xFFFFE3C7)),
     DiscoverItem("💰", "Budget & Finance", "Split expenses smartly", Color(0xFFFFD9E2)),
-    DiscoverItem("🧠", "University Help", "Notes & mentors", Color(0xFFE4DDFF)),
+    DiscoverItem("📝", "Student Checklist", "Arrival & prep tasks", Color(0xFFE4DDFF)),
 )
 
 @Composable
