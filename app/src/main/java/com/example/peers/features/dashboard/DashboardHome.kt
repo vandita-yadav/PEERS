@@ -47,7 +47,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.peers.features.community.ConnectionState
@@ -65,7 +64,10 @@ private val homeDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("
 
 /** Content of the Home tab: dates, top events, PYMK, discover grid. */
 @Composable
-fun DashboardHome(viewModel: DashboardViewModel) {
+fun DashboardHome(
+    viewModel: DashboardViewModel,
+    onOpenAccommodation: () -> Unit = {},
+) {
     val user by viewModel.user.collectAsStateWithLifecycle()
     val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
     val today = LocalDate.now()
@@ -130,7 +132,11 @@ fun DashboardHome(viewModel: DashboardViewModel) {
 
         item {
             SectionHeader(title = "Discover What Interests You", actionLabel = "", onAction = { })
-            DiscoverGrid()
+            DiscoverGrid(
+                onOpen = { item ->
+                    if (item.title == "Accommodation") onOpenAccommodation()
+                }
+            )
         }
     }
 }
@@ -483,7 +489,7 @@ private val discoverItems = listOf(
 )
 
 @Composable
-private fun DiscoverGrid() {
+private fun DiscoverGrid(onOpen: (DiscoverItem) -> Unit) {
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.padding(horizontal = 20.dp),
@@ -491,7 +497,7 @@ private fun DiscoverGrid() {
         discoverItems.chunked(2).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 rowItems.forEach { item ->
-                    DiscoverCard(item, Modifier.weight(1f))
+                    DiscoverCard(item, modifier = Modifier.weight(1f), onClick = { onOpen(item) })
                 }
                 if (rowItems.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -500,12 +506,16 @@ private fun DiscoverGrid() {
 }
 
 @Composable
-private fun DiscoverCard(item: DiscoverItem, modifier: Modifier = Modifier) {
+private fun DiscoverCard(
+    item: DiscoverItem,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier.clickable { },
+        modifier = modifier.clickable(onClick = onClick),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.Top) {
