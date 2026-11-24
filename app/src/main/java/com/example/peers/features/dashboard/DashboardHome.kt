@@ -151,15 +151,22 @@ fun DashboardHome(
         }
 
         item {
-            SectionHeader(title = "Discover What Interests You", actionLabel = "", onAction = { })
+            val userNeeds = user?.needs.orEmpty()
+            SectionHeader(
+                title = if (userNeeds.isNotEmpty()) "Tailored For Your Needs" else "Discover What Interests You",
+                actionLabel = "",
+                onAction = { }
+            )
             DiscoverGrid(
+                userNeeds = userNeeds,
                 onOpen = { item ->
-                    when (item.title) {
-                        "Make Friends" -> onOpenCommunity()
-                        "Events" -> onOpenEvents(null)
-                        "Accommodation" -> onOpenAccommodation()
-                        "Budget & Finance" -> onOpenBudget()
-                        "Student Checklist" -> onOpenChecklist()
+                    when (item.route) {
+                        "community" -> onOpenCommunity()
+                        "events" -> onOpenEvents(null)
+                        "accommodation" -> onOpenAccommodation()
+                        "budget" -> onOpenBudget()
+                        "checklist" -> onOpenChecklist()
+                        "assistant" -> onOpenAssistant()
                     }
                 }
             )
@@ -537,27 +544,56 @@ private data class DiscoverItem(
     val title: String,
     val subtitle: String,
     val accent: Color,
+    val route: String,
+    val needKey: String,
 )
 
-private val discoverItems = listOf(
-    DiscoverItem("🤝", "Make Friends", "Find peers near you", PeersLavender),
-    DiscoverItem("🎪", "Events", "What's happening on campus", PeersSky),
-    DiscoverItem("🏠", "Accommodation", "Rooms & flatmates", PeersMint),
-    DiscoverItem("💼", "Jobs & Internships", "Career opportunities", PeersWarmYellow),
-    DiscoverItem("💰", "Budget & Finance", "Split expenses smartly", PeersPink),
-    DiscoverItem("📝", "Student Checklist", "Arrival & prep tasks", PeersCoral),
+private val allDiscoverItems = listOf(
+    DiscoverItem("🏠", "Accommodation", "Rooms & flatmates", PeersMint, "accommodation", "Accommodation"),
+    DiscoverItem("👥", "Make Friends", "Find peers near you", PeersLavender, "community", "Make Friends"),
+    DiscoverItem("🎉", "Events & Activities", "What's happening on campus", PeersSky, "events", "Events & Activities"),
+    DiscoverItem("💰", "Budget & Finance", "Split expenses smartly", PeersPink, "budget", "Budget & Finance"),
+    DiscoverItem("📄", "Visa & Documents", "Arrival & prep tasks", PeersCoral, "checklist", "Visa & Documents"),
+    DiscoverItem("🎓", "University Help", "Campus guidance & Q&A", PeersSky, "assistant", "University Help"),
+    DiscoverItem("💼", "Jobs & Internships", "Career opportunities", PeersWarmYellow, "assistant", "Jobs & Internships"),
+    DiscoverItem("🚇", "Transportation", "Local transit & commute", PeersSky, "assistant", "Transportation"),
+    DiscoverItem("🏥", "Healthcare", "Insurance & clinics", PeersMint, "assistant", "Healthcare"),
+    DiscoverItem("🛒", "Daily Life", "Essential living checklists", PeersWarmYellow, "checklist", "Daily Life"),
+    DiscoverItem("🗣️", "Language & Culture", "Meet international peers", PeersLavender, "community", "Language & Culture"),
+    DiscoverItem("🤝", "Community Support", "Ask, share & connect", PeersPink, "community", "Community Support"),
 )
 
 @Composable
-private fun DiscoverGrid(onOpen: (DiscoverItem) -> Unit) {
+private fun DiscoverGrid(
+    userNeeds: List<String>,
+    onOpen: (DiscoverItem) -> Unit,
+) {
+    val prioritized = remember(userNeeds) {
+        if (userNeeds.isEmpty()) {
+            allDiscoverItems.take(6).map { it to false }
+        } else {
+            val matched = allDiscoverItems.filter { item ->
+                userNeeds.any { need -> need.contains(item.needKey, ignoreCase = true) }
+            }
+            val remaining = allDiscoverItems.filter { it !in matched }
+            val combined = matched.map { it to true } + remaining.take((6 - matched.size).coerceAtLeast(0)).map { it to false }
+            combined
+        }
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.padding(horizontal = 20.dp),
     ) {
-        discoverItems.chunked(2).forEach { rowItems ->
+        prioritized.chunked(2).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                rowItems.forEach { item ->
-                    DiscoverCard(item, modifier = Modifier.weight(1f), onClick = { onOpen(item) })
+                rowItems.forEach { (item, isForYou) ->
+                    DiscoverCard(
+                        item = item,
+                        isForYou = isForYou,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onOpen(item) }
+                    )
                 }
                 if (rowItems.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -568,12 +604,14 @@ private fun DiscoverGrid(onOpen: (DiscoverItem) -> Unit) {
 @Composable
 private fun DiscoverCard(
     item: DiscoverItem,
+    isForYou: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = if (isForYou) BorderStroke(1.2.dp, PeersPrimaryIndigo.copy(alpha = 0.45f)) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = modifier.clickable(onClick = onClick),
     ) {
@@ -589,12 +627,28 @@ private fun DiscoverCard(
                     Text(item.emoji, fontSize = 20.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowForward,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
+                if (isForYou) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = PeersPrimaryIndigo.copy(alpha = 0.14f),
+                    ) {
+                        Text(
+                            "For You",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PeersPrimaryIndigo,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
             Text(
                 item.title,

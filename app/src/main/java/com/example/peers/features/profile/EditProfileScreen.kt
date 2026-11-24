@@ -82,31 +82,11 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-private val allInterestsList = listOf(
-    "Academics & Study", "Technology", "Career & Jobs", "Entrepreneurship", "Coding",
-    "Music", "Arts & Creativity", "Photography", "Filmography", "Dance",
-    "Sports", "Gym & Fitness", "Travel", "Food & Cooking", "Gaming",
-    "Books & Reading", "Movies & TV", "Culture & Languages", "Volunteering"
-)
-
-private val allNeedsList = listOf(
-    "Accommodation", "Make Friends", "University Help",
-    "Jobs & Internships", "Visa & Documents", "Budget & Finance",
-    "Transportation", "Healthcare", "Daily Life",
-    "Events & Activities", "Language & Culture", "Community Support"
-)
-
-private val degreeOptions = listOf("Bachelor's", "Master's", "PhD", "Diploma", "Certificate")
-private val yearOptions = listOf("1st Year", "2nd Year", "3rd Year", "4th Year", "Final Year", "Graduate")
-private val universities = listOf(
-    "Lovely Professional University",
-    "Delhi University",
-    "VIT Vellore",
-    "BITS Pilani",
-    "IIT Delhi",
-    "University of Toronto",
-    "Other"
-)
+private val allInterestsList = ProfileOptions.allInterests
+private val allNeedsList = ProfileOptions.needs
+private val degreeOptions = ProfileOptions.degreeLevels
+private val yearOptions = ProfileOptions.studyYears
+private val universities = ProfileOptions.universities
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -123,6 +103,7 @@ fun EditProfileScreen(
     var name by remember { mutableStateOf(user?.name.orEmpty()) }
     val initialAvatar = PeersAvatars.normalizePath(user?.avatarIndex)
     var selectedAvatar by remember { mutableStateOf(initialAvatar) }
+    var photoUrl by remember { mutableStateOf(user?.photoUrl.orEmpty()) }
     var selectedCategory by remember { mutableStateOf("Neutral") }
     var university by remember {
         mutableStateOf(
@@ -142,16 +123,23 @@ fun EditProfileScreen(
     var currentCountry by remember { mutableStateOf(user?.currentCountry.orEmpty()) }
     var currentCity by remember { mutableStateOf(user?.city.orEmpty()) }
     var bio by remember { mutableStateOf(user?.bio.orEmpty()) }
+    var selectedLanguages by remember { mutableStateOf(user?.languagesKnown.orEmpty().toSet()) }
     var selectedInterests by remember { mutableStateOf(user?.interests.orEmpty().toSet()) }
-    var selectedNeeds by remember { mutableStateOf(user?.needs.orEmpty().toSet()) }
+    var selectedNeeds by remember {
+        mutableStateOf(
+            user?.needs.orEmpty().map { saved ->
+                allNeedsList.firstOrNull { opt -> opt == saved || opt.contains(saved, ignoreCase = true) } ?: saved
+            }.toSet()
+        )
+    }
 
     var isSaving by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
-    var showAvatarPicker by remember { mutableStateOf(false) }
 
     // Check if any modification exists
     val hasChanges = name != (user?.name.orEmpty()) ||
             selectedAvatar != initialAvatar ||
+            photoUrl != (user?.photoUrl.orEmpty()) ||
             university != (user?.university.orEmpty()) ||
             course != (user?.course.orEmpty()) ||
             degreeLevel != (user?.degreeLevel.orEmpty()) ||
@@ -161,6 +149,7 @@ fun EditProfileScreen(
             currentCountry != (user?.currentCountry.orEmpty()) ||
             currentCity != (user?.city.orEmpty()) ||
             bio != (user?.bio.orEmpty()) ||
+            selectedLanguages != (user?.languagesKnown.orEmpty().toSet()) ||
             selectedInterests != (user?.interests.orEmpty().toSet()) ||
             selectedNeeds != (user?.needs.orEmpty().toSet())
 
@@ -218,6 +207,7 @@ fun EditProfileScreen(
                                 val data = mapOf(
                                     "name" to name.trim(),
                                     "avatarIndex" to selectedAvatar,
+                                    "photoUrl" to photoUrl,
                                     "university" to finalUni,
                                     "course" to course.trim(),
                                     "degreeLevel" to degreeLevel,
@@ -227,6 +217,7 @@ fun EditProfileScreen(
                                     "currentCountry" to currentCountry.trim(),
                                     "currentCity" to currentCity.trim(),
                                     "bio" to bio.trim(),
+                                    "languagesKnown" to selectedLanguages.toList(),
                                     "interests" to selectedInterests.toList(),
                                     "needs" to selectedNeeds.toList(),
                                 )
@@ -286,8 +277,8 @@ fun EditProfileScreen(
                     modifier = Modifier.fillMaxWidth().padding(18.dp),
                 ) {
                     PeersAvatarBadge(
-                        avatarIndex = selectedAvatar,
-                        photoUrl = null,
+                        avatarIndex = if (photoUrl.isBlank()) selectedAvatar else null,
+                        photoUrl = photoUrl.takeIf { it.isNotBlank() },
                         size = 84.dp,
                         borderWidth = 3.dp,
                         borderColor = PeersPrimaryIndigo,
@@ -344,7 +335,7 @@ fun EditProfileScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
                             ) {
                                 rowItems.forEach { assetPath ->
-                                    val isChosen = selectedAvatar == assetPath
+                                    val isChosen = photoUrl.isBlank() && selectedAvatar == assetPath
                                     Box(
                                         modifier = Modifier
                                             .size(54.dp)
@@ -355,7 +346,10 @@ fun EditProfileScreen(
                                                 color = if (isChosen) PeersPrimaryIndigo else MaterialTheme.colorScheme.outlineVariant,
                                                 shape = CircleShape
                                             )
-                                            .clickable { selectedAvatar = assetPath },
+                                            .clickable {
+                                                selectedAvatar = assetPath
+                                                photoUrl = ""
+                                            },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         AsyncImage(
@@ -679,6 +673,45 @@ fun EditProfileScreen(
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Section 5: Languages Known ───────────────────────────────────
+            EditSectionTitle("LANGUAGES KNOWN (OPTIONAL)", "🗣️")
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                ) {
+                    ProfileOptions.languages.forEach { lang ->
+                        val isSelected = selectedLanguages.contains(lang)
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = if (isSelected) PeersPrimaryIndigo else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.clickable {
+                                selectedLanguages = if (isSelected) {
+                                    selectedLanguages - lang
+                                } else {
+                                    selectedLanguages + lang
+                                }
+                            },
+                        ) {
+                            Text(
+                                lang,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            )
                         }
                     }
                 }

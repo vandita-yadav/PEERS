@@ -203,30 +203,20 @@ class AuthViewModel : ViewModel() {
                     .build()
                 runCatching { user.updateProfile(profileUpdates).await() }
 
-                // Create initial complete dashboard profile in Firestore backend
+                // Register initial identity document with profileCompleted = false
+                // so the new user immediately enters the 4-step Profile Onboarding flow.
                 val initialUserData = mapOf(
                     "uid" to user.uid,
                     "name" to fullName.trim(),
                     "email" to email.trim(),
-                    "university" to "Campus Student",
-                    "course" to "Student",
-                    "yearOfStudy" to "1st Year",
-                    "currentCity" to "Local Campus",
-                    "countryOfOrigin" to "",
-                    "currentCountry" to "",
-                    "degreeLevel" to "Undergraduate",
-                    "expectedGraduationYear" to "2027",
-                    "bio" to "Hello, I am a new member of the PEERS community!",
-                    "interests" to listOf("Networking", "Study Groups", "Campus Events"),
-                    "needs" to listOf("Meet Peers", "Study Resources"),
                     "photoUrl" to "",
-                    "profileCompleted" to true,
+                    "profileCompleted" to false,
                     "createdAt" to FieldValue.serverTimestamp(),
                 )
                 firestore.collection("users").document(user.uid).set(initialUserData).await()
 
                 _authState.value = AuthState.SignedIn(
-                    isNewUser = false, // Direct to Dashboard! Dashboard is created in backend!
+                    isNewUser = true, // Routes straight into Profile Onboarding after Sign-Up
                     displayName = fullName.trim(),
                     email = email.trim(),
                     photoUrl = null,
