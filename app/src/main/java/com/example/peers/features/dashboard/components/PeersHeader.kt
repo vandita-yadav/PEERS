@@ -27,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.peers.features.dashboard.DashboardUser
-import com.example.peers.features.profile.components.PeersIndigoAccent
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -122,7 +121,7 @@ fun PeersHeader(
 fun PeersAvatar(user: DashboardUser?, size: Modifier = Modifier) {
     val avatarEmojis = listOf("🧑🏿", "👩🏿", "👦🏽", "👧🏼", "👩🏽", "🧔🏽", "🧕🏾")
     val avatarColors = listOf(
-        PeersIndigoAccent,
+        PeersPrimaryIndigo,
         PeersLavender,
         PeersSky,
         PeersMint,

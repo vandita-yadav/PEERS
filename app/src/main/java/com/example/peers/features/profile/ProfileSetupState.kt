@@ -23,7 +23,7 @@ data class ProfileSetupState(
 
     // Step 2
     val profileImageUri: String? = null,
-    val selectedAvatar: Int? = null,
+    val selectedAvatar: String? = null,
 
     // Steps 3 & 4
     val selectedInterests: Set<String> = emptySet(),

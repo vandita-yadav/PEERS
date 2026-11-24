@@ -54,10 +54,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.peers.features.community.ConnectionState
 import com.example.peers.features.dashboard.components.EventDot
+import com.example.peers.ui.theme.PeersCoral
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
+import com.example.peers.ui.theme.PeersPink
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersSky
+import com.example.peers.ui.theme.PeersWarmYellow
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -540,9 +543,9 @@ private val discoverItems = listOf(
     DiscoverItem("🤝", "Make Friends", "Find peers near you", PeersLavender),
     DiscoverItem("🎪", "Events", "What's happening on campus", PeersSky),
     DiscoverItem("🏠", "Accommodation", "Rooms & flatmates", PeersMint),
-    DiscoverItem("💼", "Jobs & Internships", "Career opportunities", Color(0xFFFFE3C7)),
-    DiscoverItem("💰", "Budget & Finance", "Split expenses smartly", Color(0xFFFFD9E2)),
-    DiscoverItem("📝", "Student Checklist", "Arrival & prep tasks", Color(0xFFE4DDFF)),
+    DiscoverItem("💼", "Jobs & Internships", "Career opportunities", PeersWarmYellow),
+    DiscoverItem("💰", "Budget & Finance", "Split expenses smartly", PeersPink),
+    DiscoverItem("📝", "Student Checklist", "Arrival & prep tasks", PeersCoral),
 )
 
 @Composable

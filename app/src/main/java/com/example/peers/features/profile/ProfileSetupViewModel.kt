@@ -122,9 +122,9 @@ class ProfileSetupViewModel : ViewModel()
         it.copy(profileImageUri = uri, selectedAvatar = null)
     }
 
-    fun updateSelectedAvatar(avatarId: Int?) = _state.update {
+    fun updateSelectedAvatar(avatarPath: String?) = _state.update {
         // If an avatar is selected, clear any uploaded real photo
-        it.copy(selectedAvatar = avatarId, profileImageUri = null)
+        it.copy(selectedAvatar = avatarPath, profileImageUri = null)
     }
 
     // --- Step 3 Updates ---

@@ -100,7 +100,7 @@ private fun PeersAuthApp(
     NavHost(navController = navController, startDestination = "splash") {
         composable("splash") {
             LaunchedEffect(Unit) {
-                kotlinx.coroutines.delay(1100)
+                kotlinx.coroutines.delay(2500)
                 // Returning users with an active Firebase session AND a completed
                 // profile skip auth entirely; incomplete profiles go to onboarding.
                 val destination = if (authViewModel.isSessionActive()) {

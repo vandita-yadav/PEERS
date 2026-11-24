@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -296,31 +297,48 @@ fun AccommodationDetails(
 
             DetailSection("Location")
             Surface(
+                onClick = {
+                    val query = Uri.encode("${listing.title}, ${listing.address}")
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$query"))
+                    runCatching { context.startActivity(intent) }
+                },
                 shape = RoundedCornerShape(18.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth().height(110.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(118.dp),
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
                 ) {
-                    Icon(
-                        Icons.Rounded.Map,
-                        contentDescription = null,
-                        tint = PeersPrimaryIndigo,
-                        modifier = Modifier.size(28.dp),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Rounded.Place,
+                            contentDescription = null,
+                            tint = PeersPrimaryIndigo,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Google Maps Location",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                     Text(
-                        "Map preview",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        "${listing.address} · ${listing.distanceLabel} from campus",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     Text(
-                        "Add a Maps API key to enable the interactive map",
+                        "Tap to open interactive route in Google Maps ↗",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        color = PeersPrimaryIndigo,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
             }
