@@ -17,7 +17,7 @@ val PeersCoral = Color(0xFFFA897B)
 val PeersWarmYellow = Color(0xFFFFDD94)
 val PeersSoftLime = Color(0xFFD0E6A5)
 val PeersMintTeal = Color(0xFF86E3CE)
-val PeersSplashBackground = Color(0xFFFFF2D6) // Light warm peach/orange background for Splash screen
+val PeersSplashBackground = Color(0xFFFFF5EB) // Warm light peach/orange background ensuring PEERS logo pop
 
 // ── Light Theme Colors (Plain White Background) ──────────────────────────────
 val LightBackground = Color(0xFFFFFFFF)
