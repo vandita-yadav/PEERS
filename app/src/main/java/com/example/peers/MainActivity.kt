@@ -85,9 +85,9 @@ private fun PeersAuthApp(
         when (val state = authState) {
             is AuthState.SignedIn -> {
                 if (state.isNewUser) {
-                    navController.navigate("profile") { popUpTo("welcome") { inclusive = true } }
+                    navController.navigate("profile") { popUpTo(0) { inclusive = true } }
                 } else {
-                    navController.navigate("dashboard") { popUpTo("welcome") { inclusive = true } }
+                    navController.navigate("dashboard") { popUpTo(0) { inclusive = true } }
                 }
             }
             else -> Unit
@@ -133,6 +133,7 @@ private fun PeersAuthApp(
             OnboardingScreens.ManualSignUp(
                 isSigningIn = authState == AuthState.SigningIn,
                 accountExistsError = accountExistsError,
+                signInError = signInError,
                 onSignUp = { name, email, password ->
                     authViewModel.signUpManually(name, email, password)
                 },
@@ -153,6 +154,7 @@ private fun PeersAuthApp(
         composable("manual_login") {
             OnboardingScreens.ManualLogIn(
                 isSigningIn = authState == AuthState.SigningIn,
+                signInError = signInError,
                 onLogIn = { email, password ->
                     authViewModel.logInManually(email, password)
                 },

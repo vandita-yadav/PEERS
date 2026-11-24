@@ -187,12 +187,14 @@ class AuthViewModel : ViewModel() {
 
     /**
      * Manual Sign-Up with Full Name, Email, and Password.
+     * Creates account in Firebase Auth backend and initializes complete Dashboard in Firestore.
      */
     fun signUpManually(fullName: String, email: String, password: String) {
         if (_authState.value == AuthState.SigningIn) return
         viewModelScope.launch {
             _authState.value = AuthState.SigningIn
             _accountExistsError.value = null
+            _signInError.value = null
             try {
                 val authResult = auth.createUserWithEmailAndPassword(email.trim(), password).await()
                 val user = requireNotNull(authResult.user)
@@ -200,17 +202,31 @@ class AuthViewModel : ViewModel() {
                     .setDisplayName(fullName.trim())
                     .build()
                 runCatching { user.updateProfile(profileUpdates).await() }
-                firestore.collection("users").document(user.uid).set(
-                    mapOf(
-                        "uid" to user.uid,
-                        "name" to fullName.trim(),
-                        "email" to email.trim(),
-                        "profileCompleted" to false,
-                        "createdAt" to FieldValue.serverTimestamp(),
-                    )
-                ).await()
+
+                // Create initial complete dashboard profile in Firestore backend
+                val initialUserData = mapOf(
+                    "uid" to user.uid,
+                    "name" to fullName.trim(),
+                    "email" to email.trim(),
+                    "university" to "Campus Student",
+                    "course" to "Student",
+                    "yearOfStudy" to "1st Year",
+                    "currentCity" to "Local Campus",
+                    "countryOfOrigin" to "",
+                    "currentCountry" to "",
+                    "degreeLevel" to "Undergraduate",
+                    "expectedGraduationYear" to "2027",
+                    "bio" to "Hello, I am a new member of the PEERS community!",
+                    "interests" to listOf("Networking", "Study Groups", "Campus Events"),
+                    "needs" to listOf("Meet Peers", "Study Resources"),
+                    "photoUrl" to "",
+                    "profileCompleted" to true,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                )
+                firestore.collection("users").document(user.uid).set(initialUserData).await()
+
                 _authState.value = AuthState.SignedIn(
-                    isNewUser = true,
+                    isNewUser = false, // Direct to Dashboard! Dashboard is created in backend!
                     displayName = fullName.trim(),
                     email = email.trim(),
                     photoUrl = null,
@@ -218,44 +234,19 @@ class AuthViewModel : ViewModel() {
             } catch (e: Exception) {
                 Log.e(TAG, "Manual sign-up failed", e)
                 val msg = e.message ?: ""
+                _authState.value = AuthState.SignedOut
                 if (msg.contains("email address is already in use", ignoreCase = true) ||
                     msg.contains("already exists", ignoreCase = true)
                 ) {
                     _accountExistsError.value = "this account already exists, please login to access"
-                    _authState.value = AuthState.SignedOut
-                } else if (msg.contains("OPERATION_NOT_ALLOWED", ignoreCase = true) ||
-                    msg.contains("CONFIGURATION_NOT_FOUND", ignoreCase = true) ||
-                    msg.contains("network error", ignoreCase = true)
-                ) {
-                    // Graceful fallback if Firebase email/password provider is not enabled:
-                    // Create local user profile so user is not blocked
-                    val fallbackUid = "local_" + email.trim().replace("@", "_").replace(".", "_")
-                    val doc = runCatching { firestore.collection("users").document(fallbackUid).get().await() }.getOrNull()
-                    if (doc != null && doc.exists() && doc.getBoolean("profileCompleted") == true) {
-                        _accountExistsError.value = "this account already exists, please login to access"
-                        _authState.value = AuthState.SignedOut
-                    } else {
-                        runCatching {
-                            firestore.collection("users").document(fallbackUid).set(
-                                mapOf(
-                                    "uid" to fallbackUid,
-                                    "name" to fullName.trim(),
-                                    "email" to email.trim(),
-                                    "profileCompleted" to false,
-                                    "createdAt" to FieldValue.serverTimestamp(),
-                                )
-                            ).await()
-                        }
-                        _authState.value = AuthState.SignedIn(
-                            isNewUser = true,
-                            displayName = fullName.trim(),
-                            email = email.trim(),
-                            photoUrl = null,
-                        )
-                    }
+                } else if (msg.contains("OPERATION_NOT_ALLOWED", ignoreCase = true)) {
+                    _signInError.value = "Email/Password sign-in is not enabled in Firebase Console. Please enable it under Authentication > Sign-in method in Firebase Console."
+                } else if (msg.contains("weak-password", ignoreCase = true)) {
+                    _signInError.value = "Password should be at least 6 characters."
+                } else if (msg.contains("invalid-email", ignoreCase = true)) {
+                    _signInError.value = "The email address is badly formatted."
                 } else {
-                    _authState.value = AuthState.SignedOut
-                    _signInError.value = e.message ?: "Sign up failed. Please try again."
+                    _signInError.value = e.localizedMessage ?: "Sign up failed. Please try again."
                 }
             }
         }
@@ -263,39 +254,60 @@ class AuthViewModel : ViewModel() {
 
     /**
      * Manual Log-In with Email and Password.
+     * Authenticates with Firebase Auth and loads Dashboard from Firestore.
      */
     fun logInManually(email: String, password: String) {
         if (_authState.value == AuthState.SigningIn) return
         viewModelScope.launch {
             _authState.value = AuthState.SigningIn
             _accountExistsError.value = null
+            _signInError.value = null
             try {
                 val authResult = auth.signInWithEmailAndPassword(email.trim(), password).await()
                 val user = requireNotNull(authResult.user)
                 val userDoc = firestore.collection("users").document(user.uid)
                 val snapshot = runCatching { userDoc.get().await() }.getOrNull()
-                val isCompleted = snapshot?.getBoolean("profileCompleted") == true
+                if (snapshot == null || !snapshot.exists()) {
+                    // Create default dashboard profile if not exists
+                    val initialUserData = mapOf(
+                        "uid" to user.uid,
+                        "name" to (user.displayName ?: "Peer"),
+                        "email" to user.email.orEmpty(),
+                        "university" to "Campus Student",
+                        "course" to "Student",
+                        "yearOfStudy" to "1st Year",
+                        "currentCity" to "Local Campus",
+                        "countryOfOrigin" to "",
+                        "currentCountry" to "",
+                        "degreeLevel" to "Undergraduate",
+                        "expectedGraduationYear" to "2027",
+                        "bio" to "Hello, I am a new member of the PEERS community!",
+                        "interests" to listOf("Networking", "Study Groups", "Campus Events"),
+                        "needs" to listOf("Meet Peers", "Study Resources"),
+                        "photoUrl" to "",
+                        "profileCompleted" to true,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                    )
+                    userDoc.set(initialUserData).await()
+                }
                 _authState.value = AuthState.SignedIn(
-                    isNewUser = !isCompleted,
+                    isNewUser = false,
                     displayName = user.displayName ?: snapshot?.getString("name"),
                     email = user.email,
                     photoUrl = user.photoUrl?.toString(),
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Manual login failed", e)
-                val fallbackUid = "local_" + email.trim().replace("@", "_").replace(".", "_")
-                val doc = runCatching { firestore.collection("users").document(fallbackUid).get().await() }.getOrNull()
-                if (doc != null && doc.exists()) {
-                    val isCompleted = doc.getBoolean("profileCompleted") == true
-                    _authState.value = AuthState.SignedIn(
-                        isNewUser = !isCompleted,
-                        displayName = doc.getString("name"),
-                        email = email.trim(),
-                        photoUrl = null,
-                    )
+                val msg = e.message ?: ""
+                _authState.value = AuthState.SignedOut
+                if (msg.contains("OPERATION_NOT_ALLOWED", ignoreCase = true)) {
+                    _signInError.value = "Email/Password sign-in is not enabled in Firebase Console. Please enable it under Authentication > Sign-in method in Firebase Console."
+                } else if (msg.contains("user-not-found", ignoreCase = true) || msg.contains("no user record", ignoreCase = true)) {
+                    _signInError.value = "No account found with this email. Please sign up first."
+                } else if (msg.contains("wrong-password", ignoreCase = true) || msg.contains("invalid-credential", ignoreCase = true)) {
+                    _signInError.value = "Incorrect password. Please try again."
                 } else {
-                    _authState.value = AuthState.SignedOut
-                    _signInError.value = "Invalid email or password. Please try again."
+                    _signInError.value = e.localizedMessage ?: "Invalid email or password. Please try again."
                 }
             }
         }
