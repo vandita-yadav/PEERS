@@ -1,9 +1,9 @@
 package com.example.peers.features.profile
 
+import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,14 +18,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -34,45 +31,47 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.peers.R
 import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.ui.theme.GoogleSans
+import com.example.peers.ui.theme.Lato
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersSky
 
 /**
- * Student's full public/personal profile tab.
+ * Student's full personal profile screen (opened from Header avatar or Side Menu).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProfileScreen(
     user: DashboardUser?,
     unreadCount: Int,
-    connectionCount: Int,
     savedEventsCount: Int,
-    onMenuClick: () -> Unit,
+    onBack: () -> Unit,
     onBellClick: () -> Unit,
     onEditProfile: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BackHandler { onBack() }
+
     val scrollState = rememberScrollState()
 
     Column(
@@ -96,20 +95,20 @@ fun ProfileScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                // Top Action Bar inside banner
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 ) {
-                    IconButton(onClick = onMenuClick) {
+                    IconButton(onClick = onBack) {
                         Icon(
-                            Icons.Default.Menu,
-                            contentDescription = "Menu",
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
                             tint = Color.White,
                         )
                     }
                     Text(
                         "My Profile",
+                        fontFamily = GoogleSans,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -124,15 +123,17 @@ fun ProfileScreen(
                                 }
                             }
                         ) {
-                            Icon(
-                                Icons.Default.Notifications,
+                            PeersDrawableIcon(
+                                lightRes = R.drawable.notification_white,
+                                darkRes = R.drawable.notification_white,
                                 contentDescription = "Notifications",
-                                tint = Color.White,
+                                size = 22.dp,
                             )
                         }
                     }
                 }
-                // Avatar with white glow border
+
+                // Avatar / Cropped Photo with white glow border
                 PeersAvatarBadge(
                     avatarIndex = user?.avatarIndex,
                     photoUrl = user?.photoUrl,
@@ -145,6 +146,7 @@ fun ProfileScreen(
 
                 Text(
                     user?.name ?: "Student Peer",
+                    fontFamily = GoogleSans,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -153,6 +155,7 @@ fun ProfileScreen(
 
                 Text(
                     user?.email ?: "",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.85f),
                     textAlign = TextAlign.Center,
@@ -166,19 +169,14 @@ fun ProfileScreen(
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
                         modifier = Modifier.padding(top = 10.dp),
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        Text(
+                            user?.university.orEmpty(),
+                            fontFamily = GoogleSans,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        ) {
-                            Text("🎓", fontSize = 14.sp)
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                user?.university.orEmpty(),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                            )
-                        }
+                        )
                     }
                 }
 
@@ -188,9 +186,10 @@ fun ProfileScreen(
                         user?.currentCountry?.takeIf { it.isNotBlank() }
                     ).joinToString(", ")
                     Text(
-                        "$locationText",
+                        locationText,
+                        fontFamily = Lato,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = Color.White.copy(alpha = 0.85f),
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
@@ -214,7 +213,7 @@ fun ProfileScreen(
             ) {
                 Icon(Icons.Rounded.Edit, contentDescription = null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Edit Profile", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Edit Profile", fontFamily = GoogleSans, fontWeight = FontWeight.Bold, color = Color.White)
             }
 
             FilledTonalButton(
@@ -226,7 +225,7 @@ fun ProfileScreen(
             ) {
                 Icon(Icons.Rounded.Settings, contentDescription = null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Settings", fontWeight = FontWeight.SemiBold)
+                Text("Settings", fontFamily = GoogleSans, fontWeight = FontWeight.SemiBold)
             }
         }
 
@@ -247,20 +246,10 @@ fun ProfileScreen(
                     .padding(vertical = 16.dp),
             ) {
                 ProfileStatItem(
-                    count = "$connectionCount",
-                    label = "Connections",
-                    emoji = "👥",
-                )
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .width(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant)
-                )
-                ProfileStatItem(
                     count = "$savedEventsCount",
                     label = "Saved Events",
-                    emoji = "📅",
+                    lightIcon = R.drawable.events_black,
+                    darkIcon = R.drawable.events_white,
                 )
                 Box(
                     modifier = Modifier
@@ -271,7 +260,20 @@ fun ProfileScreen(
                 ProfileStatItem(
                     count = "${user?.interests?.size ?: 0}",
                     label = "Interests",
-                    emoji = "✨",
+                    lightIcon = R.drawable.stars_black,
+                    darkIcon = R.drawable.stars_white,
+                )
+                Box(
+                    modifier = Modifier
+                        .height(36.dp)
+                        .width(1.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                )
+                ProfileStatItem(
+                    count = "${user?.needs?.size ?: 0}",
+                    label = "Preferences",
+                    lightIcon = R.drawable.checklist_black,
+                    darkIcon = R.drawable.checklist_white,
                 )
             }
         }
@@ -279,10 +281,15 @@ fun ProfileScreen(
         Spacer(Modifier.height(16.dp))
 
         // ── About Me Card ─────────────────────────────────────────────────────
-        ProfileSectionCard(title = "About Me", emoji = "📝") {
+        ProfileSectionCard(
+            title = "About Me",
+            lightIcon = R.drawable.notes_black,
+            darkIcon = R.drawable.notes_white,
+        ) {
             if (user?.bio.isNullOrBlank()) {
                 Text(
                     "Introduce yourself to campus peers! Share where you're from, your passions, and what you're working on.",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
@@ -290,6 +297,7 @@ fun ProfileScreen(
             } else {
                 Text(
                     user?.bio.orEmpty(),
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 22.sp,
@@ -300,9 +308,13 @@ fun ProfileScreen(
         Spacer(Modifier.height(14.dp))
 
         // ── Academic Journey Card ─────────────────────────────────────────────
-        ProfileSectionCard(title = "Academic Journey", emoji = "🎓") {
-            AcademicRow("University", user?.university?.ifBlank { "Lovely Professional University" } ?: "Not specified")
-            AcademicRow("Course", user?.course?.ifBlank { "Computer Science" } ?: "Not specified")
+        ProfileSectionCard(
+            title = "Academic Journey",
+            lightIcon = R.drawable.info_black,
+            darkIcon = R.drawable.info_white,
+        ) {
+            AcademicRow("University", user?.university?.ifBlank { "Not specified" } ?: "Not specified")
+            AcademicRow("Course", user?.course?.ifBlank { "Not specified" } ?: "Not specified")
             if (!user?.degreeLevel.isNullOrBlank()) {
                 AcademicRow("Degree Level", user?.degreeLevel.orEmpty())
             }
@@ -320,11 +332,16 @@ fun ProfileScreen(
         Spacer(Modifier.height(14.dp))
 
         // ── Interests & Passions ───────────────────────────────────────────────
-        ProfileSectionCard(title = "Interests & Passions", emoji = "💡") {
+        ProfileSectionCard(
+            title = "Interests & Passions",
+            lightIcon = R.drawable.stars_black,
+            darkIcon = R.drawable.stars_white,
+        ) {
             val interests = user?.interests.orEmpty()
             if (interests.isEmpty()) {
                 Text(
-                    "No interests selected yet. Pick at least 3 to match with like-minded students.",
+                    "No interests selected yet. Pick at least 3 in Edit Profile.",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -341,7 +358,8 @@ fun ProfileScreen(
                             border = BorderStroke(1.dp, pastels[index % pastels.size]),
                         ) {
                             Text(
-                                "✨ $interest",
+                                interest,
+                                fontFamily = GoogleSans,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -356,11 +374,16 @@ fun ProfileScreen(
         Spacer(Modifier.height(14.dp))
 
         // ── What I'm Looking For (Needs) ──────────────────────────────────────
-        ProfileSectionCard(title = "What I'm Looking For", emoji = "🤝") {
+        ProfileSectionCard(
+            title = "What I Need From PEERS",
+            lightIcon = R.drawable.handshake_black,
+            darkIcon = R.drawable.handshake_white,
+        ) {
             val needs = user?.needs.orEmpty()
             if (needs.isEmpty()) {
                 Text(
-                    "Tell peers what support or connections you need.",
+                    "Select what support and PEERS features matter most to you.",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -370,13 +393,15 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     needs.forEach { need ->
+                        val cleanLabel = need.replace(Regex("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u27BF]"), "").trim()
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         ) {
                             Text(
-                                "🎯 $need",
+                                cleanLabel.ifBlank { need },
+                                fontFamily = Lato,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -391,7 +416,11 @@ fun ProfileScreen(
 
         // ── Languages Known ───────────────────────────────────────────────────
         if (!user?.languagesKnown.isNullOrEmpty()) {
-            ProfileSectionCard(title = "Languages Known", emoji = "🗣️") {
+            ProfileSectionCard(
+                title = "Languages Known",
+                lightIcon = R.drawable.community_black,
+                darkIcon = R.drawable.community_white,
+            ) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -402,7 +431,8 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         ) {
                             Text(
-                                "🌐 $lang",
+                                lang,
+                                fontFamily = Lato,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -419,13 +449,24 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileStatItem(count: String, label: String, emoji: String) {
+private fun ProfileStatItem(
+    count: String,
+    label: String,
+    @DrawableRes lightIcon: Int,
+    @DrawableRes darkIcon: Int,
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(emoji, fontSize = 16.sp)
-            Spacer(Modifier.width(4.dp))
+            PeersDrawableIcon(
+                lightRes = lightIcon,
+                darkRes = darkIcon,
+                contentDescription = label,
+                size = 16.dp,
+            )
+            Spacer(Modifier.width(5.dp))
             Text(
                 count,
+                fontFamily = GoogleSans,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = PeersPrimaryIndigo,
@@ -433,6 +474,7 @@ private fun ProfileStatItem(count: String, label: String, emoji: String) {
         }
         Text(
             label,
+            fontFamily = Lato,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
@@ -443,7 +485,8 @@ private fun ProfileStatItem(count: String, label: String, emoji: String) {
 @Composable
 private fun ProfileSectionCard(
     title: String,
-    emoji: String,
+    @DrawableRes lightIcon: Int,
+    @DrawableRes darkIcon: Int,
     content: @Composable () -> Unit,
 ) {
     Card(
@@ -459,10 +502,16 @@ private fun ProfileSectionCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 12.dp),
             ) {
-                Text(emoji, fontSize = 18.sp)
+                PeersDrawableIcon(
+                    lightRes = lightIcon,
+                    darkRes = darkIcon,
+                    contentDescription = title,
+                    size = 18.dp,
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     title,
+                    fontFamily = GoogleSans,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -483,12 +532,14 @@ private fun AcademicRow(label: String, value: String) {
     ) {
         Text(
             label,
+            fontFamily = Lato,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
         Text(
             value,
+            fontFamily = GoogleSans,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,

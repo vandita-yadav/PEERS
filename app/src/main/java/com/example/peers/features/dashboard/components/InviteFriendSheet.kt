@@ -20,10 +20,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Email
-import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,7 +55,7 @@ import com.example.peers.ui.theme.PeersPrimaryIndigo
 
 private const val INVITE_LINK = "https://play.google.com/store/apps/details?id=com.example.peers"
 private const val SHARE_MESSAGE =
-    "Check out PEERS — the student community app for people, communities & opportunities that matter to you! 🎒 Download: $INVITE_LINK"
+    "Check out PEERS — the student community app for people, communities & opportunities that matter to you! Download: $INVITE_LINK"
 
 private val WhatsAppGreen = Color(0xFF25D366)
 
@@ -91,7 +96,12 @@ fun InviteFriendSheet(
                     .clip(CircleShape)
                     .background(PeersLavender.copy(alpha = 0.35f)),
             ) {
-                Text("💌", fontSize = 28.sp)
+                PeersDrawableIcon(
+                    lightRes = R.drawable.invite_black,
+                    darkRes = R.drawable.invite_white,
+                    contentDescription = "Invite Friends",
+                    size = 28.dp,
+                )
             }
 
             Spacer(Modifier.height(14.dp))
@@ -166,7 +176,12 @@ fun InviteFriendSheet(
                     .fillMaxWidth()
                     .height(50.dp),
             ) {
-                Text("💬", fontSize = 18.sp)
+                Icon(
+                    imageVector = Icons.Rounded.Share,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
                 Spacer(Modifier.size(8.dp))
                 Text(
                     "Share via WhatsApp",
@@ -191,17 +206,17 @@ fun InviteFriendSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ShareCircleButton(
-                    emoji = "📸",
+                    icon = Icons.Rounded.CameraAlt,
                     label = "Instagram",
                     onClick = { shareToApp(context, "com.instagram.android", SHARE_MESSAGE) },
                 )
                 ShareCircleButton(
-                    emoji = "👻",
+                    icon = Icons.Rounded.ChatBubbleOutline,
                     label = "Snapchat",
                     onClick = { shareToApp(context, "com.snapchat.android", SHARE_MESSAGE) },
                 )
                 ShareCircleButton(
-                    emoji = "💬",
+                    icon = Icons.Rounded.Email,
                     label = "Messages",
                     onClick = {
                         val smsIntent = Intent(Intent.ACTION_VIEW).apply {
@@ -213,7 +228,7 @@ fun InviteFriendSheet(
                     },
                 )
                 ShareCircleButton(
-                    emoji = "🔗",
+                    icon = Icons.Rounded.Link,
                     label = "More",
                     onClick = { launchSystemShare(context, SHARE_MESSAGE) },
                 )
@@ -224,7 +239,7 @@ fun InviteFriendSheet(
 
 @Composable
 private fun ShareCircleButton(
-    emoji: String,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
 ) {
@@ -240,7 +255,12 @@ private fun ShareCircleButton(
             modifier = Modifier.size(50.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(emoji, fontSize = 22.sp)
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
         Text(

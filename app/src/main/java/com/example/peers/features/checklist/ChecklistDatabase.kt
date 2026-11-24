@@ -23,7 +23,7 @@ abstract class ChecklistDatabase : RoomDatabase() {
                     context.applicationContext,
                     ChecklistDatabase::class.java,
                     "peers-checklist.db",
-                ).build().also { instance = it }
+                ).fallbackToDestructiveMigration(true).build().also { instance = it }
             }
     }
 }

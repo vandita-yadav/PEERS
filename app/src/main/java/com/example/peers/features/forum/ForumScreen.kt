@@ -48,6 +48,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -81,6 +83,7 @@ import java.util.concurrent.TimeUnit
 fun ForumScreen(
     modifier: Modifier = Modifier,
     viewModel: ForumViewModel = viewModel(),
+    onBack: (() -> Unit)? = null,
 ) {
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val allPosts by viewModel.allPosts.collectAsStateWithLifecycle()
@@ -127,6 +130,7 @@ fun ForumScreen(
                 onUpvote = viewModel::toggleUpvote,
                 onReport = { post -> reportTarget = ReportTarget(post = post) },
                 onCompose = { showComposer = true },
+                onBack = onBack,
             )
         }
         SnackbarHost(
@@ -189,23 +193,39 @@ private fun ForumFeed(
     onUpvote: (String) -> Unit,
     onReport: (ForumPost) -> Unit,
     onCompose: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     LazyColumn(
         contentPadding = PaddingValues(bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                Text(
-                    "Community",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "Ask, share and find your people",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                if (onBack != null) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
+                Column {
+                    Text(
+                        "Discussion",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "Join other peers in the discussion",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -248,7 +268,7 @@ private fun ForumFeed(
                     FilterChip(
                         selected = selectedCommunity == community.id,
                         onClick = { onCommunitySelected(community.id) },
-                        label = { Text("${community.emoji} ${community.name}") },
+                        label = { Text(community.name) },
                         colors = forumChipColors(),
                     )
                 }
@@ -287,7 +307,12 @@ private fun ForumFeed(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(26.dp),
                     ) {
-                        Text("🗣️", fontSize = 40.sp)
+                        PeersDrawableIcon(
+                            lightRes = R.drawable.community_black,
+                            darkRes = R.drawable.community_white,
+                            contentDescription = "No discussions",
+                            size = 40.dp,
+                        )
                         Text(
                             "No discussions here yet",
                             style = MaterialTheme.typography.titleMedium,
@@ -467,7 +492,12 @@ private fun PostCard(
                         .clip(CircleShape)
                         .background(PeersSky.copy(alpha = 0.6f)),
                 ) {
-                    Text(post.authorEmoji, fontSize = 15.sp)
+                    Text(
+                        post.authorName.firstOrNull()?.uppercase() ?: "P",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PeersBrandInk,
+                    )
                 }
                 Text(
                     post.authorName,
@@ -580,7 +610,7 @@ private fun NewPostSheet(
                 FilterChip(
                     selected = community.id == option.id,
                     onClick = { community = option },
-                    label = { Text("${option.emoji} ${option.name}") },
+                    label = { Text(option.name) },
                     colors = forumChipColors(),
                 )
             }
@@ -660,7 +690,14 @@ private fun PostDetail(
                                 .size(36.dp)
                                 .clip(CircleShape)
                                 .background(PeersSky.copy(alpha = 0.6f)),
-                        ) { Text(post.authorEmoji, fontSize = 17.sp) }
+                        ) {
+                            Text(
+                                post.authorName.firstOrNull()?.uppercase() ?: "P",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PeersBrandInk,
+                            )
+                        }
                         Column(Modifier.padding(start = 10.dp)) {
                             Text(
                                 post.authorName,
@@ -754,7 +791,14 @@ private fun CommentCard(comment: ForumComment, onReport: () -> Unit) {
                         .size(28.dp)
                         .clip(CircleShape)
                         .background(PeersMint),
-                ) { Text(comment.authorEmoji, fontSize = 14.sp) }
+                ) {
+                    Text(
+                        comment.authorName.firstOrNull()?.uppercase() ?: "P",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PeersBrandInk,
+                    )
+                }
                 Text(
                     comment.authorName,
                     style = MaterialTheme.typography.labelMedium,

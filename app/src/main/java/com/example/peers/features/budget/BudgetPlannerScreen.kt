@@ -34,6 +34,8 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.TrendingUp
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -611,7 +613,12 @@ private fun CategoryBreakdownCard(breakdown: List<CategoryBreakdown>) {
                             .clip(CircleShape)
                             .background(categoryColor(row.category)),
                     ) {
-                        Text(row.category.emoji, fontSize = 16.sp)
+                        Text(
+                            row.category.label.first().toString(),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1D1B30),
+                        )
                     }
                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -691,7 +698,12 @@ private fun ExpenseRow(
                     .clip(RoundedCornerShape(13.dp))
                     .background(categoryColor(category)),
             ) {
-                Text(category.emoji, fontSize = 18.sp)
+                Text(
+                    category.label.first().toString(),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1D1B30),
+                )
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -761,7 +773,12 @@ private fun EmptyMonthCard(onSetup: () -> Unit, onLoadSample: () -> Unit) {
             )
             .padding(24.dp),
     ) {
-        Text("🧮", fontSize = 44.sp)
+        PeersDrawableIcon(
+            lightRes = R.drawable.budget_black,
+            darkRes = R.drawable.budget_white,
+            contentDescription = "Budget",
+            size = 44.dp,
+        )
         Text(
             "Let's plan this month",
             style = MaterialTheme.typography.titleLarge,
@@ -914,7 +931,7 @@ private fun ExpenseEditor(
                 FilterChip(
                     selected = category == option,
                     onClick = { category = option },
-                    label = { Text("${option.emoji} ${option.label}") },
+                    label = { Text(option.label) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = PeersPrimaryIndigo,
                         selectedLabelColor = Color.White,

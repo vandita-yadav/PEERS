@@ -27,7 +27,7 @@ abstract class OfflineCacheDatabase : RoomDatabase() {
                     context.applicationContext,
                     OfflineCacheDatabase::class.java,
                     "peers-cache.db",
-                ).build().also { instance = it }
+                ).fallbackToDestructiveMigration(true).build().also { instance = it }
             }
     }
 }

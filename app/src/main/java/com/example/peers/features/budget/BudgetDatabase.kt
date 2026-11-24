@@ -23,7 +23,7 @@ abstract class BudgetDatabase : RoomDatabase() {
                     context.applicationContext,
                     BudgetDatabase::class.java,
                     "peers-budget.db",
-                ).build().also { instance = it }
+                ).fallbackToDestructiveMigration(true).build().also { instance = it }
             }
     }
 }

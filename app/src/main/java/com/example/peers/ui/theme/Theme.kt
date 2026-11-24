@@ -1,6 +1,7 @@
 package com.example.peers.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -54,8 +55,20 @@ fun PeersTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            val navBarTint = if (darkTheme) DarkSurface else Color(0xFFF3F4F6)
+            @Suppress("DEPRECATION")
+            run {
+                window.statusBarColor = colorScheme.background.toArgb()
+                window.navigationBarColor = navBarTint.toArgb()
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+            }
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                // Ensures system nav bar icons (Back, Home, Recents) are dark & crisp on light theme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
 

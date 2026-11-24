@@ -71,7 +71,7 @@ class ConnectionRepository {
         addNotification(
             title = "Request sent",
             body = "Your connection request to $peerName is on its way.",
-            emoji = "📨",
+            emoji = "",
             type = "request_sent",
         )
         return true
@@ -85,8 +85,8 @@ class ConnectionRepository {
         ).await()
         addNotification(
             title = "Connection accepted",
-            body = "$peerName accepted your connection request. Say hi! 👋",
-            emoji = "🤝",
+            body = "$peerName accepted your connection request.",
+            emoji = "",
             type = "connection_accepted",
         )
     }

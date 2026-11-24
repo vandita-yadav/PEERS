@@ -46,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersSky
@@ -118,7 +120,12 @@ fun NotificationsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxSize().padding(padding).padding(32.dp),
             ) {
-                Text("🔕", fontSize = 44.sp)
+                PeersDrawableIcon(
+                    lightRes = R.drawable.notification_black,
+                    darkRes = R.drawable.notification_white,
+                    contentDescription = null,
+                    size = 44.dp,
+                )
                 Text(
                     "You're all caught up!",
                     style = MaterialTheme.typography.titleMedium,
@@ -201,7 +208,18 @@ private fun NotificationRow(
                             .clip(RoundedCornerShape(14.dp))
                             .background(iconBg),
                     ) {
-                        Text(notification.emoji, fontSize = 20.sp)
+                        val (lightRes, darkRes) = when (notification.type) {
+                            NotificationType.CONNECTION_REQUEST -> R.drawable.request_black to R.drawable.request_white
+                            NotificationType.CONNECTION_ACCEPTED -> R.drawable.handshake_black to R.drawable.handshake_white
+                            NotificationType.REQUEST_SENT -> R.drawable.invite_black to R.drawable.invite_white
+                            NotificationType.INFO -> R.drawable.info_black to R.drawable.info_white
+                        }
+                        PeersDrawableIcon(
+                            lightRes = lightRes,
+                            darkRes = darkRes,
+                            contentDescription = notification.title,
+                            size = 22.dp,
+                        )
                     }
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -248,7 +266,7 @@ private fun NotificationRow(
                     }
                 } else if (resolved) {
                     Text(
-                        "✓ Handled",
+                        "Handled",
                         style = MaterialTheme.typography.labelSmall,
                         color = PeersPrimaryIndigo,
                         modifier = Modifier.padding(start = 56.dp, top = 4.dp),

@@ -82,6 +82,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
@@ -97,6 +99,7 @@ fun EventsScreen(
     modifier: Modifier = Modifier,
     viewModel: EventsViewModel = viewModel(),
     initialDate: LocalDate? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -136,7 +139,8 @@ fun EventsScreen(
             EventsHeader(
                 query = state.query,
                 onQueryChange = viewModel::onQueryChange,
-                onCreateClick = { viewModel.setCreatingEvent(true) }
+                onCreateClick = { viewModel.setCreatingEvent(true) },
+                onBack = onBack,
             )
 
             // Horizontal Date Calendar Ribbon
@@ -223,6 +227,7 @@ private fun EventsHeader(
     query: String,
     onQueryChange: (String) -> Unit,
     onCreateClick: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -234,17 +239,32 @@ private fun EventsHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column {
-                Text(
-                    text = "Campus & City Events",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Meetups, study circles & orientations",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (onBack != null) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
+                Column {
+                    Text(
+                        text = "Campus & City Events",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Meetups, study circles & orientations",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Button(
@@ -424,7 +444,7 @@ private fun OrganizerFilterRow(
             FilterChip(
                 selected = selected == EventOrganizerType.UNIVERSITY,
                 onClick = { onSelected(EventOrganizerType.UNIVERSITY) },
-                label = { Text("🎓 University", fontSize = 12.sp) },
+                label = { Text("University", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = PeersPrimaryIndigo.copy(alpha = 0.25f),
                     selectedLabelColor = PeersPrimaryIndigo,
@@ -435,7 +455,7 @@ private fun OrganizerFilterRow(
             FilterChip(
                 selected = selected == EventOrganizerType.STUDENT,
                 onClick = { onSelected(EventOrganizerType.STUDENT) },
-                label = { Text("🧑‍🎓 Student Clubs", fontSize = 12.sp) },
+                label = { Text("Student Clubs", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = PeersSky.copy(alpha = 0.35f),
                     selectedLabelColor = MaterialTheme.colorScheme.onBackground,
@@ -446,7 +466,7 @@ private fun OrganizerFilterRow(
             FilterChip(
                 selected = selected == EventOrganizerType.COMMUNITY,
                 onClick = { onSelected(EventOrganizerType.COMMUNITY) },
-                label = { Text("👥 Community", fontSize = 12.sp) },
+                label = { Text("Community", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = PeersMint.copy(alpha = 0.45f),
                     selectedLabelColor = MaterialTheme.colorScheme.onBackground,
@@ -511,7 +531,12 @@ private fun EventCard(
                         .clip(CircleShape)
                         .background(orgColor.copy(alpha = 0.25f))
                 ) {
-                    Text(text = event.emoji, fontSize = 24.sp)
+                    PeersDrawableIcon(
+                        lightRes = R.drawable.events_black,
+                        darkRes = R.drawable.events_white,
+                        contentDescription = event.title,
+                        size = 24.dp,
+                    )
                 }
 
                 Spacer(Modifier.width(12.dp))
@@ -690,7 +715,7 @@ private fun EventCard(
                         shape = RoundedCornerShape(18.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                     ) {
-                        Text("Attending ✓", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Attending", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 } else {
                     OutlinedButton(
@@ -728,7 +753,12 @@ private fun EventsEmptyState(
                 .clip(CircleShape)
                 .background(PeersLavender.copy(alpha = 0.25f))
         ) {
-            Text("🎪", fontSize = 36.sp)
+            PeersDrawableIcon(
+                lightRes = R.drawable.events_black,
+                darkRes = R.drawable.events_white,
+                contentDescription = "No events",
+                size = 34.dp,
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -804,7 +834,12 @@ private fun EventDetailsSheet(
                         .clip(CircleShape)
                         .background(PeersLavender.copy(alpha = 0.35f))
                 ) {
-                    Text(event.emoji, fontSize = 28.sp)
+                    PeersDrawableIcon(
+                        lightRes = R.drawable.events_black,
+                        darkRes = R.drawable.events_white,
+                        contentDescription = event.title,
+                        size = 28.dp,
+                    )
                 }
 
                 Row {
@@ -914,7 +949,20 @@ private fun EventDetailsSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text(attendee.emoji, fontSize = 16.sp)
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(PeersPrimaryIndigo.copy(alpha = 0.2f)),
+                                ) {
+                                    Text(
+                                        attendee.name.firstOrNull()?.uppercase() ?: "P",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PeersPrimaryIndigo,
+                                    )
+                                }
                                 Spacer(Modifier.width(6.dp))
                                 Text(attendee.name, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                             }
@@ -975,10 +1023,7 @@ private fun CreateEventSheet(
     var city by remember { mutableStateOf("Phagwara") }
     var daysFromNow by remember { mutableIntStateOf(2) }
     var hourOfDay by remember { mutableIntStateOf(17) }
-    var emoji by remember { mutableStateOf("🎉") }
     var capacityStr by remember { mutableStateOf("50") }
-
-    val emojis = listOf("🎉", "🎙️", "🍳", "🛬", "🎪", "📚", "🍕", "⚽", "☕", "🎮")
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1005,28 +1050,6 @@ private fun CreateEventSheet(
                 )
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Rounded.Close, contentDescription = "Close")
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Emoji selector
-            Text("Pick an Event Icon", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(emojis) { em ->
-                    Surface(
-                        shape = CircleShape,
-                        color = if (emoji == em) PeersPrimaryIndigo.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceVariant,
-                        border = if (emoji == em) BorderStroke(2.dp, PeersPrimaryIndigo) else null,
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clickable { emoji = em }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(em, fontSize = 20.sp)
-                        }
-                    }
                 }
             }
 
@@ -1147,7 +1170,7 @@ private fun CreateEventSheet(
                         venue.ifBlank { "Main Campus Quad" },
                         city.ifBlank { "Phagwara" },
                         millis,
-                        emoji,
+                        "",
                         capacityStr.toIntOrNull() ?: 50
                     )
                 },
@@ -1161,7 +1184,7 @@ private fun CreateEventSheet(
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                Text("Publish Campus Event 🚀", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Publish Campus Event", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
     }

@@ -1,139 +1,16 @@
-Profile onboarding:-
-Changes needed to made - in the existing app, we have profile section in the bottom navigation bar, on clicking that option the user can see profile and their is an edit profile button. We need to implement the profile onboarding screen RIGHT AFTER THE SIGN UP PAGE(just created an account either manually or google) and not for login page
-Use "profileOnboardingSampleLayout1.png" and "profileOnboardingSampleLayout2.png" for reference of sliders and use the color scheme properly.
-Input	Type	Required?
-Country of Origin	Country dropdown/search	Yes
-Current Country	Country dropdown/search	Yes
-Current City	Search/dropdown	Yes
-University/College	Search/select	Already collected during Sign Up
-Course/Program	Search/select	Yes
-Degree Level	Dropdown/cards — Undergraduate, Postgraduate, Diploma, PhD, Exchange Program, Other	Yes
-Year of Study	Dropdown	Yes
-Expected Graduation Year	Dropdown	Optional
-Bio / About Me	Multiline text	Optional
-Languages Known	Multi-select	Optional
+Great work
+Issues that I am facing and things that needed to be fixed:-
+the app in my phone is crashing even after clearing cache in settings too
+1. If i login manually, then it is successfully happening, then I can choose the new avatars for profile photo and it will be updated in the side menu, but if I do the same by logging in using my existing google account and then change avatar then it is not happening in the side menu or not the profile page, and in the header near notification icon
+2. Next, please remove the emojis used all over the app, I have downloaded icons in white (for dark mode) and black color (for light mode) svg format and stored in drawable, please use them, either use the provided icons or if there is shortage of icons then refrain from using emojis keep it as it is.
+3. Implement back button at every screen and also whenever I click back button (given on the navigation of phone by the android system), it closes the app, so fix that please
+4. There is a lot of events mentioned in the calendar of the dashboard but when I go the events page, it is not there, so there has to be smooth and consistency in data throughout the app.
+5. I am thinking to remove "People you may know" section completely from the app and "Jobs and Internship" feature since for "People you may know" we should also have a chat window which i am not implementing because this app is for students to have all information at one place not some hinge + insta + reddit + olx + oyo + linkedin
+6. For peers ai student guide, it is giving some set answers which are already there in database, but I want to use llm or some api (gemini api) so that it gives answers related to the entire app only but in a more natural way rather than some 10 bullet point response
+7. Under discover what interests you - for the card "Make Friends", change it to "Discussion - Join other peers in the discussion"
+8. Remove "Jobs and internships" or better rename it to "Rentals and Transport"
+10. In the header, the Profile icon near notification symbol and even in the side menu, should open to the profile page
+11. In the bottom nav bar change the last "profile" icon to "settings" which should lead to the settings page of the app.
+12. In the profile page, under edit profile there should be button change profile picture by choosing pic from gallery or taking a photo or using existing avatar
 
-•	Course/Program: Prefer search/select over free text. This keeps data consistent. 
-•	Languages Known: I'd make this optional, because students can add/edit it later. 
-•	Expected Graduation Year: Optional is fine. 
-•	Your "Degree Level" has a typo: Undergraduate, not "Undergraduated." 
-
-
-2nd Slider – Profile Picture Input
-Profile picture options
-The user can:
-•	Take Photo using the device camera 
-•	Upload/Browse from gallery 
-•	Choose an Avatar from predefined PEERS avatars 
-Privacy statement
-Your idea of displaying a privacy message is good, but I'd phrase the requirement carefully:
-Your personal photos are not shared with third-party applications without your permission.
-I wouldn't promise that the image is never shared with third parties unless your actual backend/privacy architecture guarantees that. For example, your cloud storage provider may technically process the image.
-Image editor
-After selecting/taking a picture:
-•	Display the image inside a circular crop frame. 
-•	User can: 
-o	Zoom in 
-o	Zoom out 
-o	Move image horizontally 
-o	Move image vertically 
-•	Do not automatically crop/position the image. 
-•	User manually adjusts the image until satisfied. 
-
-Buttons:
-[ Cancel ] [ Save ]
-•	Cancel: Discard changes and return to the profile-picture selection screen. 
-•	Save: Save the adjusted profile picture and return to Step 2. 
-Final navigation
-[ Back ] [ Continue ]
-→ Continue to 3rd Slider – Interests
-This distinction is important: Save applies to the photo editor, while Continue moves between onboarding steps.
-3rd Slider – Card Inputs: “What Are You Interested In?”
-This is good. I'd divide the cards into logical categories so you don't end up with a giant random grid.
-
-📚 Learning & Career
-•	Academics & Study 
-•	Technology 
-•	Career & Jobs 
-•	Entrepreneurship 
-•	Freelancing 
-•	Content Writing 
-•	Content Creation 
-🎨 Creative
-•	Music 
-•	Arts & Creativity 
-•	Photography 
-•	Filmography 
-•	Dance 
-•	Vlogging 
-🏃 Lifestyle & Sports
-•	Sports 
-•	Gym & Fitness 
-•	Martial Arts 
-•	Travel 
-•	Food & Cooking 
-🎮 Entertainment
-•	Gaming 
-•	Books 
-•	Movies & Entertainment 
-🌍 Social & Community
-•	Culture & Languages 
-•	Volunteering 
-•	Social Events 
-You can still display them as one multi-select card grid; the categories are mainly for organization.
-Selection behavior
-•	Multiple cards can be selected. 
-•	Selected cards receive a highlighted border/checkmark. 
-•	Unselected cards remain neutral. 
-•	Ideally require at least 3 interests. 
-Button:
-[ Back ] [ Continue ]
-→ 4th Slider.
-I'd use "Continue (3 selected)" dynamically, like your reference UI.
-4th Slider – Card Inputs: “What Do You Need From PEERS?”
-This is one of the most important screens, because these selections can directly determine the user's personalized dashboard.
-Cards
-•	🏠 Accommodation 
-•	👥 Make Friends 
-•	🎓 University Help 
-•	💼 Jobs & Internships 
-•	📄 Visa & Documents 
-•	💰 Budget & Finance 
-•	🚇 Transportation 
-•	🏥 Healthcare 
-•	🛒 Daily Life 
-•	🎉 Events & Activities 
-•	🗣️ Language & Culture 
-•	🤝 Community Support 
-Again:
-•	Multi-select 
-•	Highlight selected cards 
-•	Require at least 2–3 selections 
-•	Allow users to change these later from their profile/settings. 
-Button
-Instead of:
-Save / Back
-I'd use:
-[ Back ] [ Complete Profile ]
-Because this is the final onboarding step.
-Put a progress indicator at the top of every step:
-Step 1 of 4
-━━━━━━━━━━━━
-Step 2 of 4
-━━━━━━━━━━━━
-etc.
-And allow:
-← Back
-but don't allow users to skip the entire profile setup if the information is needed for personalization. They can leave optional fields blank.
-One architectural point
-Don't think of these four screens as four separate "profile pages." They're better documented as a single Profile Onboarding flow with four steps.
-That distinction will help later when you implement it:
-Profile Onboarding
-•	Step 1 → Basic Information 
-•	Step 2 → Profile Picture 
-•	Step 3 → Interests 
-•	Step 4 → PEERS Preferences 
-Then, after completion, the user never sees this flow again unless they explicitly choose "Edit Profile."
-That is a clean setup for PEERS.
-
-Keep the all the data entered by the new user when the dashboard and profile page has been created inside the app.
+Is it possible to display the nav icons of android system (app drawer, home, back button) in different color because the app is also white so it is not visible at all unless dark mode activated

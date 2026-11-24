@@ -55,12 +55,12 @@ sealed interface ForumUiEvent {
 
 object ForumDemo {
     val communities: List<ForumCommunity> = listOf(
-        ForumCommunity("lpu", "LPU Campus", ForumCommunityType.UNIVERSITY, "🎓", "Lovely Professional University", 1240),
-        ForumCommunity("du", "DU Circle", ForumCommunityType.UNIVERSITY, "🏛️", "University of Delhi", 860),
-        ForumCommunity("vit", "VIT Vellore", ForumCommunityType.UNIVERSITY, "⚙️", "VIT Vellore", 720),
-        ForumCommunity("delhi", "Delhi Students", ForumCommunityType.CITY, "🌆", "New Delhi", 1100),
-        ForumCommunity("mumbai", "Mumbai Students", ForumCommunityType.CITY, "🌊", "Mumbai", 980),
-        ForumCommunity("bengaluru", "Bengaluru Students", ForumCommunityType.CITY, "🌿", "Bengaluru", 890),
+        ForumCommunity("lpu", "LPU Campus", ForumCommunityType.UNIVERSITY, "", "Lovely Professional University", 1240),
+        ForumCommunity("du", "DU Circle", ForumCommunityType.UNIVERSITY, "", "University of Delhi", 860),
+        ForumCommunity("vit", "VIT Vellore", ForumCommunityType.UNIVERSITY, "", "VIT Vellore", 720),
+        ForumCommunity("delhi", "Delhi Students", ForumCommunityType.CITY, "", "New Delhi", 1100),
+        ForumCommunity("mumbai", "Mumbai Students", ForumCommunityType.CITY, "", "Mumbai", 980),
+        ForumCommunity("bengaluru", "Bengaluru Students", ForumCommunityType.CITY, "", "Bengaluru", 890),
     )
 
     fun posts(now: Long = System.currentTimeMillis()): List<ForumPost> {
@@ -72,7 +72,7 @@ object ForumDemo {
                 body = "Landing at T3 around 11pm next Friday. Is the overnight bus from Kashmere Gate still the best option, or should I pool a cab with other students?",
                 authorUid = "demo-aisha",
                 authorName = "Aisha Verma",
-                authorEmoji = "👩🏽",
+                authorEmoji = "",
                 communityId = "lpu",
                 communityName = "LPU Campus",
                 upvoteCount = 23,
@@ -85,7 +85,7 @@ object ForumDemo {
                 body = "I can do weekend shifts and some remote content editing. Where do students usually find flexible work that doesn't clash with classes?",
                 authorUid = "demo-rohan",
                 authorName = "Rohan Mehta",
-                authorEmoji = "🧔🏽",
+                authorEmoji = "",
                 communityId = "delhi",
                 communityName = "Delhi Students",
                 upvoteCount = 41,
@@ -98,7 +98,7 @@ object ForumDemo {
                 body = "Would love to make a small group before orientation. I'm from Jaipur, moving for the first time and slightly nervous about hostel life.",
                 authorUid = "demo-sana",
                 authorName = "Sana Kapoor",
-                authorEmoji = "👩🏻",
+                authorEmoji = "",
                 communityId = "vit",
                 communityName = "VIT Vellore",
                 upvoteCount = 17,
@@ -111,7 +111,7 @@ object ForumDemo {
                 body = "Sharing the list I use every week: dal, rice, eggs, seasonal veggies, curd, oats and bananas. It covers breakfast, lunch and dinner without eating out.",
                 authorUid = "demo-meera",
                 authorName = "Meera Nair",
-                authorEmoji = "👩🏾",
+                authorEmoji = "",
                 communityId = "mumbai",
                 communityName = "Mumbai Students",
                 upvoteCount = 67,
@@ -126,19 +126,19 @@ object ForumDemo {
         return when (postId) {
             "demo-post-1" -> listOf(
                 ForumComment(
-                    "demo-comment-1", postId, "demo-rohan", "Rohan Mehta", "🧔🏽",
+                    "demo-comment-1", postId, "demo-rohan", "Rohan Mehta", "",
                     "The overnight bus is still the cheapest. Book on the state transport site a day early.",
                     ago(30),
                 ),
                 ForumComment(
-                    "demo-comment-2", postId, "demo-sana", "Sana Kapoor", "👩🏻",
+                    "demo-comment-2", postId, "demo-sana", "Sana Kapoor", "",
                     "Three of us are landing around the same time. We're splitting a cab — DM me!",
                     ago(12),
                 ),
             )
             "demo-post-4" -> listOf(
                 ForumComment(
-                    "demo-comment-3", postId, "demo-aisha", "Aisha Verma", "👩🏽",
+                    "demo-comment-3", postId, "demo-aisha", "Aisha Verma", "",
                     "Adding peanut butter and frozen peas changed my weekly budget completely.",
                     ago(60 * 20),
                 ),

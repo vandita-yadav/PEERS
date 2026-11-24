@@ -74,6 +74,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.peers.ui.theme.PeersMint
@@ -382,11 +384,14 @@ private fun AccommodationCard(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Text(
-                    listing.emoji,
-                    fontSize = 56.sp,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+                Box(modifier = Modifier.align(Alignment.Center)) {
+                    PeersDrawableIcon(
+                        lightRes = R.drawable.accomodation_black,
+                        darkRes = R.drawable.accomodation_white,
+                        contentDescription = listing.title,
+                        size = 52.dp,
+                    )
+                }
             }
             if (listing.isVerified) {
                 Surface(
@@ -395,7 +400,7 @@ private fun AccommodationCard(
                     modifier = Modifier.padding(12.dp),
                 ) {
                     Text(
-                        "✓ Verified by ${listing.verifiedCount} students",
+                        "Verified by ${listing.verifiedCount} students",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF1F6B3B),
@@ -531,7 +536,12 @@ private fun EmptyListings(onReset: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxSize().padding(32.dp),
     ) {
-        Text("🏠", fontSize = 44.sp)
+        PeersDrawableIcon(
+            lightRes = R.drawable.accomodation_black,
+            darkRes = R.drawable.accomodation_white,
+            contentDescription = "No listings",
+            size = 44.dp,
+        )
         Text(
             "No stays match those filters yet.",
             style = MaterialTheme.typography.bodyLarge,

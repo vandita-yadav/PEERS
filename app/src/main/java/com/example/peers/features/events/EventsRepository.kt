@@ -58,7 +58,7 @@ class EventsRepository(
                         EventAttendee(
                             uid = doc.id,
                             name = doc.getString("name") ?: return@mapNotNull null,
-                            emoji = doc.getString("emoji") ?: "🧑🏽",
+                            emoji = "",
                         )
                     }.orEmpty()
                 )
@@ -130,7 +130,7 @@ class EventsRepository(
                     attendeeRef,
                     mapOf(
                         "name" to (user.displayName ?: "You"),
-                        "emoji" to "🧑🏽",
+                        "emoji" to "",
                         "joinedAt" to FieldValue.serverTimestamp(),
                     ),
                 )
@@ -156,7 +156,7 @@ class EventsRepository(
             venue = getString("venue").orEmpty(),
             city = getString("city").orEmpty(),
             startMillis = getLong("startMillis") ?: 0L,
-            emoji = getString("emoji") ?: "🎪",
+            emoji = "",
             capacity = (getLong("capacity") ?: 0L).toInt(),
             attendeeCount = (getLong("attendeeCount") ?: 0L).toInt(),
             createdBy = getString("createdBy").orEmpty(),

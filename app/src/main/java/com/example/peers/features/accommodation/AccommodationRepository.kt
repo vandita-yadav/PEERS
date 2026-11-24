@@ -183,7 +183,7 @@ class AccommodationRepository(
             amenities = (get("amenities") as? List<*>)?.filterIsInstance<String>().orEmpty(),
             availability = getString("availability") ?: "Available now",
             photoUrls = (get("photoUrls") as? List<*>)?.filterIsInstance<String>().orEmpty(),
-            emoji = getString("emoji") ?: "🏠",
+            emoji = "",
             contributorName = getString("contributorName").orEmpty(),
             contributorUid = getString("contributorUid").orEmpty(),
             verifiedCount = (getLong("verifiedCount") ?: 0L).toInt(),

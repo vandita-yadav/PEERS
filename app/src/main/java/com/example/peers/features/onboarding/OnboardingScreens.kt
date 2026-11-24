@@ -1,5 +1,6 @@
 package com.example.peers.features.onboarding
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -279,6 +280,10 @@ object OnboardingScreens {
 
         var showChoiceSheet by remember { mutableStateOf(false) }
         var activeAuthMode by remember { mutableStateOf(AuthMode.SIGN_UP) }
+
+        BackHandler(enabled = showChoiceSheet) {
+            showChoiceSheet = false
+        }
 
         val pagerState = rememberPagerState(pageCount = { carouselSlides.size })
 

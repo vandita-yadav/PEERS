@@ -36,7 +36,7 @@ class ForumViewModel @JvmOverloads constructor(
                     body = obj.getString("body"),
                     authorUid = obj.optString("authorUid", ""),
                     authorName = obj.optString("authorName", "You"),
-                    authorEmoji = obj.optString("authorEmoji", "🧑🏽"),
+                    authorEmoji = obj.optString("authorEmoji", ""),
                     communityId = obj.getString("communityId"),
                     communityName = obj.getString("communityName"),
                     upvoteCount = obj.optInt("upvoteCount", 0),
@@ -91,7 +91,7 @@ class ForumViewModel @JvmOverloads constructor(
                     postId = obj.getString("postId"),
                     authorUid = obj.optString("authorUid", ""),
                     authorName = obj.optString("authorName", "You"),
-                    authorEmoji = obj.optString("authorEmoji", "🧑🏽"),
+                    authorEmoji = obj.optString("authorEmoji", ""),
                     body = obj.getString("body"),
                     createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
                 )
@@ -230,7 +230,7 @@ class ForumViewModel @JvmOverloads constructor(
             body = body.trim(),
             authorUid = user?.uid.orEmpty(),
             authorName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You",
-            authorEmoji = "🧑🏽",
+            authorEmoji = "",
             communityId = community.id,
             communityName = community.name,
             upvoteCount = 0,
@@ -242,7 +242,7 @@ class ForumViewModel @JvmOverloads constructor(
         rebuildFeed()
         _communityId.value = null
         _query.value = ""
-        _uiEvents.tryEmit(ForumUiEvent.Message("Discussion posted in ${community.name}! 🚀"))
+        _uiEvents.tryEmit(ForumUiEvent.Message("Discussion posted in ${community.name}!"))
 
         viewModelScope.launch {
             runCatching { repository.addPost(title.trim(), body.trim(), community) }
@@ -269,7 +269,7 @@ class ForumViewModel @JvmOverloads constructor(
             upvoteCount = (post.upvoteCount + if (upvoted) 1 else -1).coerceAtLeast(0),
         )
         updatePost(optimistic)
-        _uiEvents.tryEmit(ForumUiEvent.Message(if (upvoted) "Liked discussion 👍" else "Unliked"))
+        _uiEvents.tryEmit(ForumUiEvent.Message(if (upvoted) "Liked discussion" else "Unliked"))
 
         viewModelScope.launch {
             runCatching { repository.toggleUpvote(postId) }
@@ -293,7 +293,7 @@ class ForumViewModel @JvmOverloads constructor(
             postId = post.id,
             authorUid = user?.uid.orEmpty(),
             authorName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You",
-            authorEmoji = "🧑🏽",
+            authorEmoji = "",
             body = body.trim(),
             createdAt = System.currentTimeMillis(),
         )
@@ -305,7 +305,7 @@ class ForumViewModel @JvmOverloads constructor(
                 ?.copy(commentCount = post.commentCount + 1)
                 ?: post
         )
-        _uiEvents.tryEmit(ForumUiEvent.Message("Reply posted! 💬"))
+        _uiEvents.tryEmit(ForumUiEvent.Message("Reply posted!"))
 
         viewModelScope.launch {
             runCatching { repository.addComment(post, body.trim()) }

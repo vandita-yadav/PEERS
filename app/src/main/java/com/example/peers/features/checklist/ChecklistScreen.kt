@@ -33,6 +33,9 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.WarningAmber
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -237,17 +240,28 @@ fun ChecklistScreen(
                                     color = Color(0xFFFDE8E8),
                                     modifier = Modifier.padding(top = 6.dp),
                                 ) {
-                                    Text(
-                                        "⚠️ $urgentRemaining urgent remaining",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFFC53030),
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.WarningAmber,
+                                            contentDescription = null,
+                                            tint = Color(0xFFC53030),
+                                            modifier = Modifier.size(14.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "$urgentRemaining urgent remaining",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFFC53030),
+                                        )
+                                    }
                                 }
                             } else {
                                 Text(
-                                    if (percent == 100) "🎉 All tasks finished! You're ready."
+                                    if (percent == 100) "All tasks finished! You're ready."
                                     else "Steady progress! Keep ticking off items.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -273,7 +287,7 @@ fun ChecklistScreen(
                             onClick = { viewModel.setCategory(cat) },
                             label = {
                                 Text(
-                                    "${cat.emoji} ${cat.label}",
+                                    cat.label,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 )
                             },
@@ -313,7 +327,12 @@ fun ChecklistScreen(
                             .fillMaxWidth()
                             .padding(vertical = 40.dp, horizontal = 20.dp),
                     ) {
-                        Text("✨", fontSize = 36.sp)
+                        PeersDrawableIcon(
+                            lightRes = R.drawable.checklist_black,
+                            darkRes = R.drawable.checklist_white,
+                            contentDescription = "No tasks",
+                            size = 36.dp,
+                        )
                         Text(
                             "No tasks in this category",
                             style = MaterialTheme.typography.titleMedium,
@@ -425,7 +444,7 @@ private fun ChecklistTaskRow(
                         color = item.category.color.copy(alpha = 0.25f),
                     ) {
                         Text(
-                            "${item.category.emoji} ${item.category.label}",
+                            item.category.label,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -559,7 +578,7 @@ private fun AddChecklistTaskSheet(
                         modifier = Modifier.clickable { selectedCat = cat },
                     ) {
                         Text(
-                            "${cat.emoji} ${cat.label}",
+                            cat.label,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Normal,
                             color = if (isChosen) Color.White else MaterialTheme.colorScheme.onSurface,

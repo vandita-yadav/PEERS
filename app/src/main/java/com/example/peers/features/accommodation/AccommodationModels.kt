@@ -18,7 +18,7 @@ data class AccommodationListing(
     val amenities: List<String>,
     val availability: String,
     val photoUrls: List<String> = emptyList(),
-    val emoji: String = "🏠",
+    val emoji: String = "",
     val accent: Color = PeersLavender,
     val contributorName: String = "",
     val contributorUid: String = "",
@@ -127,7 +127,7 @@ val demoSeekers = listOf(
         area = "Law Gate",
         budget = 8000,
         interests = listOf("Music", "Cooking", "Gaming"),
-        emoji = "👩🏽",
+        emoji = "",
         accent = PeersLavender,
     ),
     RoommateSeeker(
@@ -138,7 +138,7 @@ val demoSeekers = listOf(
         area = "Urban Estate",
         budget = 10000,
         interests = listOf("Football", "Fitness", "Coffee"),
-        emoji = "🧔🏽",
+        emoji = "",
         accent = PeersSky,
     ),
     RoommateSeeker(
@@ -149,7 +149,7 @@ val demoSeekers = listOf(
         area = "Banga Road",
         budget = 7500,
         interests = listOf("Reading", "Design", "Dogs"),
-        emoji = "👩🏼",
+        emoji = "",
         accent = PeersMint,
     ),
 )
@@ -215,7 +215,7 @@ val furnishingOptions = listOf("Furnished", "Semi-furnished", "Unfurnished")
 val amenityOptions = listOf(
     "WiFi", "AC", "Kitchen", "Laundry", "Parking", "Power Backup", "Water", "Gym",
 )
-val listingEmojis = listOf("🏠", "🏢", "🛏️", "🏡", "🏘️", "🛋️")
+val listingEmojis = emptyList<String>()
 
 private val demoAccents = listOf(PeersLavender, PeersSky, PeersMint)
 
@@ -232,7 +232,7 @@ val demoListings = listOf(
         furnishing = "Furnished",
         amenities = listOf("WiFi", "AC", "Laundry", "Water"),
         availability = "Available now",
-        emoji = "🛏️",
+        emoji = "",
         accent = demoAccents[0],
         contributorName = "Meera Nair",
         verifiedCount = 6,
@@ -251,7 +251,7 @@ val demoListings = listOf(
         furnishing = "Semi-furnished",
         amenities = listOf("WiFi", "Kitchen", "Parking", "Power Backup"),
         availability = "From 1 Dec",
-        emoji = "🏢",
+        emoji = "",
         accent = demoAccents[1],
         contributorName = "Aisha Verma",
         verifiedCount = 2,
@@ -270,7 +270,7 @@ val demoListings = listOf(
         furnishing = "Furnished",
         amenities = listOf("WiFi", "Water", "Power Backup"),
         availability = "Available now",
-        emoji = "🏘️",
+        emoji = "",
         accent = demoAccents[2],
         contributorName = "Rohan Mehta",
         verifiedCount = 4,
@@ -289,7 +289,7 @@ val demoListings = listOf(
         furnishing = "Unfurnished",
         amenities = listOf("Kitchen", "Parking", "Gym"),
         availability = "From 20 Nov",
-        emoji = "🛋️",
+        emoji = "",
         accent = demoAccents[0],
         contributorName = "Kabir Singh",
         verifiedCount = 1,
@@ -308,7 +308,7 @@ val demoListings = listOf(
         furnishing = "Furnished",
         amenities = listOf("WiFi", "AC", "Laundry", "Kitchen", "Water"),
         availability = "Available now",
-        emoji = "🏡",
+        emoji = "",
         accent = demoAccents[1],
         contributorName = "Sana Khan",
         verifiedCount = 5,

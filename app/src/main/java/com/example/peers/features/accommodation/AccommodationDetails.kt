@@ -196,7 +196,7 @@ fun AccommodationDetails(
                     modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
                 ) {
                     Text(
-                        "✓ Marked genuine by ${listing.verifiedCount} students",
+                        "Verified genuine by ${listing.verifiedCount} students",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF1F6B3B),
@@ -210,7 +210,7 @@ fun AccommodationDetails(
             ) {
                 if (isVerifiedByMe) {
                     Text(
-                        "✓ You marked this stay genuine",
+                        "You marked this stay genuine",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color(0xFF1F6B3B),
                         modifier = Modifier.weight(1f),
@@ -334,7 +334,7 @@ fun AccommodationDetails(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                     Text(
-                        "Tap to open interactive route in Google Maps ↗",
+                        "Tap to open interactive route in Google Maps",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = PeersPrimaryIndigo,
@@ -352,7 +352,12 @@ fun AccommodationDetails(
                         .clip(CircleShape)
                         .background(PeersLavender),
                 ) {
-                    Text("🧑🏽", fontSize = 20.sp)
+                    Text(
+                        listing.contributorName.firstOrNull()?.uppercase() ?: "P",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1D1B30),
+                    )
                 }
                 Column(Modifier.padding(start = 12.dp)) {
                     Text(

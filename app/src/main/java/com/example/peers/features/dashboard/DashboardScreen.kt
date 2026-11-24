@@ -4,39 +4,29 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.compose.foundation.BorderStroke
+import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Logout
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -54,6 +44,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,16 +55,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.peers.R
 import com.example.peers.features.accommodation.AccommodationScreen
 import com.example.peers.features.assistant.AssistantScreen
 import com.example.peers.features.budget.BudgetPlannerScreen
 import com.example.peers.features.checklist.ChecklistScreen
-import com.example.peers.features.community.ConnectionState
 import com.example.peers.features.dashboard.components.InviteFriendSheet
 import com.example.peers.features.dashboard.components.PeersHeader
 import com.example.peers.features.events.EventsScreen
@@ -81,21 +72,26 @@ import com.example.peers.features.forum.ForumScreen
 import com.example.peers.features.profile.EditProfileScreen
 import com.example.peers.features.profile.PeersAvatarBadge
 import com.example.peers.features.profile.ProfileScreen
+import com.example.peers.features.rentals.RentalsTransportScreen
 import com.example.peers.features.settings.SettingsScreen
+import com.example.peers.ui.theme.GoogleSans
+import com.example.peers.ui.theme.Lato
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersPrimaryIndigo
-import com.example.peers.ui.theme.PeersSky
 import com.example.peers.ui.theme.PeersThemeMode
+import com.example.peers.ui.theme.isPeersDarkTheme
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-/** Bottom-navigation destinations for the app shell. */
+/** Bottom-navigation destinations for the app shell (Settings replaces Profile tab). */
 private enum class DashTab(val label: String) {
-    HOME("Home"), COMMUNITY("Community"), EVENTS("Events"), PROFILE("Profile")
+    HOME("Home"), COMMUNITY("Discussion"), EVENTS("Events"), SETTINGS("Settings")
 }
 
 /**
- * App shell: modal side drawer + bottom navigation + tab content.
+ * App shell: modal side drawer + bottom navigation + tab & overlay routing.
+ * Handles Android system Back cleanly across drawer, overlays, and bottom tabs.
  */
 @Composable
 fun DashboardScreen(
@@ -111,19 +107,21 @@ fun DashboardScreen(
     var currentTab by remember { mutableStateOf(DashTab.HOME) }
     var targetEventDate by remember { mutableStateOf<LocalDate?>(null) }
 
+    var showProfile by remember { mutableStateOf(false) }
+    var showEditProfile by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
     var showAccommodation by remember { mutableStateOf(false) }
+    var showRentals by remember { mutableStateOf(false) }
     var showBudget by remember { mutableStateOf(false) }
     var showChecklist by remember { mutableStateOf(false) }
     var showAssistant by remember { mutableStateOf(false) }
-    var showEditProfile by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
+    var assistantInitialPrompt by remember { mutableStateOf<String?>(null) }
     var showInviteSheet by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var lastBackPressMs by remember { mutableLongStateOf(0L) }
 
     val user by dashboardViewModel.user.collectAsStateWithLifecycle()
     val unreadCount by dashboardViewModel.unreadCount.collectAsStateWithLifecycle()
-    val connectionStates by dashboardViewModel.connectionStates.collectAsStateWithLifecycle()
     val savedEventIds by dashboardViewModel.savedEventIds.collectAsStateWithLifecycle()
     val actionMessage by dashboardViewModel.actionMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -135,6 +133,43 @@ fun DashboardScreen(
         }
     }
 
+    fun clearAllOverlays() {
+        showProfile = false
+        showEditProfile = false
+        showNotifications = false
+        showAccommodation = false
+        showRentals = false
+        showBudget = false
+        showChecklist = false
+        showAssistant = false
+    }
+
+    // Top-level system Back navigation guard:
+    // Drawer -> Active overlays -> Non-Home tabs -> Double-back guard on Home.
+    val hasActiveOverlay = showEditProfile || showProfile || showNotifications ||
+        showAccommodation || showRentals || showBudget || showChecklist || showAssistant
+
+    BackHandler(enabled = drawerState.isOpen || !hasActiveOverlay) {
+        when {
+            drawerState.isOpen -> scope.launch { drawerState.close() }
+            currentTab != DashTab.HOME -> {
+                if (currentTab == DashTab.EVENTS) dashboardViewModel.refreshEvents()
+                currentTab = DashTab.HOME
+            }
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressMs < 2000L) {
+                    (context as? android.app.Activity)?.finish()
+                } else {
+                    lastBackPressMs = now
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Press back again to exit PEERS")
+                    }
+                }
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -142,66 +177,45 @@ fun DashboardScreen(
                 viewModel = dashboardViewModel,
                 themeMode = themeMode,
                 onToggleTheme = onToggleTheme,
-                onClose = { scope.launch { drawerState.close() } },
+                onOpenProfile = {
+                    clearAllOverlays()
+                    showProfile = true
+                    scope.launch { drawerState.close() }
+                },
                 onNavigateToNotifications = {
+                    clearAllOverlays()
                     showNotifications = true
-                    showAssistant = false
-                    showAccommodation = false
-                    showBudget = false
-                    showChecklist = false
-                    showEditProfile = false
-                    showSettings = false
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToAccommodation = {
+                    clearAllOverlays()
                     showAccommodation = true
-                    showAssistant = false
-                    showNotifications = false
-                    showBudget = false
-                    showChecklist = false
-                    showEditProfile = false
-                    showSettings = false
+                    scope.launch { drawerState.close() }
+                },
+                onNavigateToRentals = {
+                    clearAllOverlays()
+                    showRentals = true
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToEvents = {
+                    clearAllOverlays()
                     currentTab = DashTab.EVENTS
-                    showAssistant = false
-                    showNotifications = false
-                    showAccommodation = false
-                    showBudget = false
-                    showChecklist = false
-                    showEditProfile = false
-                    showSettings = false
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToBudget = {
+                    clearAllOverlays()
                     showBudget = true
-                    showAssistant = false
-                    showNotifications = false
-                    showAccommodation = false
-                    showChecklist = false
-                    showEditProfile = false
-                    showSettings = false
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToChecklist = {
+                    clearAllOverlays()
                     showChecklist = true
-                    showAssistant = false
-                    showNotifications = false
-                    showAccommodation = false
-                    showBudget = false
-                    showEditProfile = false
-                    showSettings = false
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToAssistant = {
+                    clearAllOverlays()
+                    assistantInitialPrompt = null
                     showAssistant = true
-                    showChecklist = false
-                    showNotifications = false
-                    showAccommodation = false
-                    showBudget = false
-                    showEditProfile = false
-                    showSettings = false
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToInvite = {
@@ -209,13 +223,8 @@ fun DashboardScreen(
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToSettings = {
-                    showSettings = true
-                    showAssistant = false
-                    showChecklist = false
-                    showNotifications = false
-                    showAccommodation = false
-                    showBudget = false
-                    showEditProfile = false
+                    clearAllOverlays()
+                    currentTab = DashTab.SETTINGS
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToRateUs = {
@@ -232,33 +241,63 @@ fun DashboardScreen(
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
-                if (!showEditProfile && !showSettings && !showNotifications && !showAccommodation && !showBudget && !showChecklist && !showAssistant) {
+                if (!hasActiveOverlay) {
+                    val isDark = isPeersDarkTheme()
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                         DashTab.entries.forEach { tab ->
+                            val selected = currentTab == tab
                             NavigationBarItem(
-                                selected = currentTab == tab,
+                                selected = selected,
                                 onClick = {
+                                    if (currentTab == DashTab.EVENTS && tab != DashTab.EVENTS) {
+                                        dashboardViewModel.refreshEvents()
+                                    }
                                     currentTab = tab
                                     if (tab != DashTab.EVENTS) {
                                         targetEventDate = null
                                     }
-                                    showNotifications = false
-                                    showAccommodation = false
-                                    showBudget = false
-                                    showChecklist = false
-                                    showAssistant = false
-                                    showEditProfile = false
-                                    showSettings = false
+                                    clearAllOverlays()
                                 },
                                 icon = {
+                                    val iconTint = if (selected) {
+                                        Color.White
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                     when (tab) {
-                                        DashTab.HOME -> Icon(Icons.Rounded.Home, null)
-                                        DashTab.COMMUNITY -> Icon(Icons.Rounded.Groups, null)
-                                        DashTab.EVENTS -> Icon(Icons.Rounded.CalendarMonth, null)
-                                        DashTab.PROFILE -> Icon(Icons.Rounded.Person, null)
+                                        DashTab.HOME -> Icon(Icons.Rounded.Home, contentDescription = tab.label)
+                                        DashTab.COMMUNITY -> Icon(
+                                            painter = painterResource(
+                                                if (isDark) R.drawable.community_white else R.drawable.community_black
+                                            ),
+                                            contentDescription = tab.label,
+                                            tint = iconTint,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                        DashTab.EVENTS -> Icon(
+                                            painter = painterResource(
+                                                if (isDark) R.drawable.events_white else R.drawable.events_black
+                                            ),
+                                            contentDescription = tab.label,
+                                            tint = iconTint,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                        DashTab.SETTINGS -> Icon(
+                                            painter = painterResource(
+                                                if (isDark) R.drawable.settings_white else R.drawable.settings_black
+                                            ),
+                                            contentDescription = tab.label,
+                                            tint = iconTint,
+                                            modifier = Modifier.size(22.dp),
+                                        )
                                     }
                                 },
-                                label = { Text(tab.label) },
+                                label = {
+                                    Text(
+                                        text = tab.label,
+                                        fontFamily = GoogleSans,
+                                    )
+                                },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = Color.White,
                                     selectedTextColor = PeersPrimaryIndigo,
@@ -280,18 +319,22 @@ fun DashboardScreen(
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
-                showSettings -> {
-                    SettingsScreen(
+                showProfile -> {
+                    ProfileScreen(
                         user = user,
-                        themeMode = themeMode,
-                        onSetTheme = { newMode ->
-                            onSetTheme?.invoke(newMode) ?: onToggleTheme()
+                        unreadCount = unreadCount,
+                        savedEventsCount = savedEventIds.size,
+                        onBack = { showProfile = false },
+                        onBellClick = {
+                            showProfile = false
+                            showNotifications = true
                         },
-                        onOpenInvite = { showInviteSheet = true },
-                        onOpenRateUs = { openPlayStore(context) },
-                        onRequestSignOut = { showSignOutDialog = true },
-                        onBack = { showSettings = false },
-                        modifier = Modifier.padding(innerPadding),
+                        onEditProfile = { showEditProfile = true },
+                        onOpenSettings = {
+                            showProfile = false
+                            currentTab = DashTab.SETTINGS
+                        },
+                        modifier = Modifier.padding(innerPadding).fillMaxSize(),
                     )
                 }
                 showNotifications -> {
@@ -304,6 +347,17 @@ fun DashboardScreen(
                 showAccommodation -> {
                     AccommodationScreen(
                         onBack = { showAccommodation = false },
+                        modifier = Modifier.padding(innerPadding),
+                    )
+                }
+                showRentals -> {
+                    RentalsTransportScreen(
+                        onBack = { showRentals = false },
+                        onAskAiRentals = { prompt ->
+                            showRentals = false
+                            assistantInitialPrompt = prompt
+                            showAssistant = true
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
@@ -323,6 +377,8 @@ fun DashboardScreen(
                 showAssistant -> {
                     AssistantScreen(
                         onBack = { showAssistant = false },
+                        initialPrompt = assistantInitialPrompt,
+                        onInitialPromptConsumed = { assistantInitialPrompt = null },
                         onNavigateToChecklist = {
                             showAssistant = false
                             showChecklist = true
@@ -335,6 +391,14 @@ fun DashboardScreen(
                             showAssistant = false
                             showAccommodation = true
                         },
+                        onNavigateToRentals = {
+                            showAssistant = false
+                            showRentals = true
+                        },
+                        onNavigateToEvents = {
+                            showAssistant = false
+                            currentTab = DashTab.EVENTS
+                        },
                         onNavigateToCommunity = {
                             showAssistant = false
                             currentTab = DashTab.COMMUNITY
@@ -343,44 +407,81 @@ fun DashboardScreen(
                     )
                 }
                 else -> {
-                    if (currentTab == DashTab.PROFILE) {
-                        ProfileScreen(
-                            user = user,
-                            unreadCount = unreadCount,
-                            connectionCount = connectionStates.values.count { it == ConnectionState.CONNECTED },
-                            savedEventsCount = savedEventIds.size,
-                            onMenuClick = { scope.launch { drawerState.open() } },
-                            onBellClick = { showNotifications = true },
-                            onEditProfile = { showEditProfile = true },
-                            onOpenSettings = { showSettings = true },
-                            modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                        )
-                    } else {
-                        Column(Modifier.padding(innerPadding)) {
-                            PeersHeader(
+                    when (currentTab) {
+                        DashTab.SETTINGS -> {
+                            SettingsScreen(
                                 user = user,
-                                unreadCount = unreadCount,
-                                onMenuClick = { scope.launch { drawerState.open() } },
-                                onBellClick = { showNotifications = true },
+                                themeMode = themeMode,
+                                onSetTheme = { newMode ->
+                                    onSetTheme?.invoke(newMode) ?: onToggleTheme()
+                                },
+                                onOpenInvite = { showInviteSheet = true },
+                                onOpenRateUs = { openPlayStore(context) },
+                                onRequestSignOut = { showSignOutDialog = true },
+                                onOpenProfile = { showProfile = true },
+                                onBack = { currentTab = DashTab.HOME },
+                                modifier = Modifier.padding(innerPadding),
                             )
-                            Box(Modifier.fillMaxSize()) {
-                                when (currentTab) {
-                                    DashTab.HOME -> DashboardHome(
-                                        viewModel = dashboardViewModel,
-                                        onOpenAccommodation = { showAccommodation = true },
-                                        onOpenBudget = { showBudget = true },
-                                        onOpenChecklist = { showChecklist = true },
-                                        onOpenAssistant = { showAssistant = true },
-                                        onOpenEvents = { date ->
-                                            targetEventDate = date
-                                            currentTab = DashTab.EVENTS
-                                        },
-                                        onOpenCommunity = { currentTab = DashTab.COMMUNITY },
-                                    )
-                                    DashTab.COMMUNITY -> ForumScreen()
-                                    DashTab.EVENTS -> EventsScreen(initialDate = targetEventDate)
-                                    DashTab.PROFILE -> Unit
-                                }
+                        }
+                        DashTab.COMMUNITY -> {
+                            Column(Modifier.padding(innerPadding)) {
+                                PeersHeader(
+                                    user = user,
+                                    unreadCount = unreadCount,
+                                    onMenuClick = { scope.launch { drawerState.open() } },
+                                    onBellClick = { showNotifications = true },
+                                    onProfileClick = { showProfile = true },
+                                )
+                                ForumScreen(
+                                    onBack = { currentTab = DashTab.HOME },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                        DashTab.EVENTS -> {
+                            Column(Modifier.padding(innerPadding)) {
+                                PeersHeader(
+                                    user = user,
+                                    unreadCount = unreadCount,
+                                    onMenuClick = { scope.launch { drawerState.open() } },
+                                    onBellClick = { showNotifications = true },
+                                    onProfileClick = { showProfile = true },
+                                )
+                                EventsScreen(
+                                    initialDate = targetEventDate,
+                                    onBack = {
+                                        dashboardViewModel.refreshEvents()
+                                        currentTab = DashTab.HOME
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                        DashTab.HOME -> {
+                            Column(Modifier.padding(innerPadding)) {
+                                PeersHeader(
+                                    user = user,
+                                    unreadCount = unreadCount,
+                                    onMenuClick = { scope.launch { drawerState.open() } },
+                                    onBellClick = { showNotifications = true },
+                                    onProfileClick = { showProfile = true },
+                                )
+                                DashboardHome(
+                                    viewModel = dashboardViewModel,
+                                    onOpenAccommodation = { showAccommodation = true },
+                                    onOpenRentals = { showRentals = true },
+                                    onOpenBudget = { showBudget = true },
+                                    onOpenChecklist = { showChecklist = true },
+                                    onOpenAssistant = {
+                                        assistantInitialPrompt = null
+                                        showAssistant = true
+                                    },
+                                    onOpenEvents = { date ->
+                                        targetEventDate = date
+                                        currentTab = DashTab.EVENTS
+                                    },
+                                    onOpenCommunity = { currentTab = DashTab.COMMUNITY },
+                                )
                             }
                         }
                     }
@@ -389,25 +490,25 @@ fun DashboardScreen(
         }
     }
 
-    // Modal Bottom Sheet: Invite Friends
     if (showInviteSheet) {
         InviteFriendSheet(onDismiss = { showInviteSheet = false })
     }
 
-    // Confirmation Dialog: Sign Out (Part 8 specification)
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
             title = {
                 Text(
                     "Sign out of PEERS?",
+                    fontFamily = GoogleSans,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             },
             text = {
                 Text(
-                    "You will need to sign in again with your Google account to use PEERS.",
+                    "You will need to sign in again to access your PEERS account.",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -420,12 +521,12 @@ fun DashboardScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) {
-                    Text("Sign Out", fontWeight = FontWeight.Bold)
+                    Text("Sign Out", fontFamily = GoogleSans, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", fontFamily = GoogleSans)
                 }
             },
             shape = RoundedCornerShape(20.dp),
@@ -441,13 +542,14 @@ private fun PeersDrawerSheet(
     viewModel: DashboardViewModel,
     themeMode: PeersThemeMode,
     onToggleTheme: () -> Unit,
-    onClose: () -> Unit,
+    onOpenProfile: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToAccommodation: () -> Unit,
+    onNavigateToRentals: () -> Unit,
     onNavigateToEvents: () -> Unit,
     onNavigateToBudget: () -> Unit,
     onNavigateToChecklist: () -> Unit,
-    onNavigateToAssistant: () -> Unit = {},
+    onNavigateToAssistant: () -> Unit,
     onNavigateToInvite: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToRateUs: () -> Unit,
@@ -465,7 +567,7 @@ private fun PeersDrawerSheet(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            // ── Profile banner ────────────────────────────────────────────────
+            // ── Clickable Profile Banner -> opens Profile Screen ──────────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -474,6 +576,7 @@ private fun PeersDrawerSheet(
                             listOf(PeersPrimaryIndigo, PeersLavender)
                         )
                     )
+                    .clickable(onClick = onOpenProfile)
                     .padding(horizontal = 20.dp, vertical = 26.dp),
             ) {
                 Column {
@@ -486,6 +589,7 @@ private fun PeersDrawerSheet(
                     )
                     Text(
                         user?.name ?: "Peer",
+                        fontFamily = GoogleSans,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -493,6 +597,7 @@ private fun PeersDrawerSheet(
                     )
                     Text(
                         user?.email ?: "",
+                        fontFamily = Lato,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.85f),
                     )
@@ -503,32 +608,41 @@ private fun PeersDrawerSheet(
                             modifier = Modifier.padding(top = 8.dp),
                         ) {
                             Text(
-                                "🎓 ${user?.university}",
+                                user?.university.orEmpty(),
+                                fontFamily = Lato,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             )
                         }
                     }
+                    Text(
+                        "Tap to view profile",
+                        fontFamily = Lato,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.78f),
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             }
 
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                 DrawerSectionLabel("EXPLORE")
-                DrawerItem("🔔", "Notifications", onClick = onNavigateToNotifications)
-                DrawerItem("🤖", "AI Student Assistant", onClick = onNavigateToAssistant)
-                DrawerItem("🏠", "Accommodation", onClick = onNavigateToAccommodation)
-                DrawerItem("🎪", "Events", onClick = onNavigateToEvents)
-                DrawerItem("💰", "Budget Planner", onClick = onNavigateToBudget)
-                DrawerItem("📝", "Student Checklist", onClick = onNavigateToChecklist)
+                DrawerItem(R.drawable.notification_black, R.drawable.notification_white, "Notifications", onClick = onNavigateToNotifications)
+                DrawerItem(R.drawable.aibot_black, R.drawable.aibot_white, "AI Student Assistant", onClick = onNavigateToAssistant)
+                DrawerItem(R.drawable.accomodation_black, R.drawable.accomodation_white, "Accommodation", onClick = onNavigateToAccommodation)
+                DrawerItem(R.drawable.job_black, R.drawable.job_white, "Rentals & Transport", onClick = onNavigateToRentals)
+                DrawerItem(R.drawable.events_black, R.drawable.events_white, "Events", onClick = onNavigateToEvents)
+                DrawerItem(R.drawable.budget_black, R.drawable.budget_white, "Budget Planner", onClick = onNavigateToBudget)
+                DrawerItem(R.drawable.checklist_black, R.drawable.checklist_white, "Student Checklist", onClick = onNavigateToChecklist)
 
                 DrawerSectionLabel("COMMUNITY")
-                DrawerItem("💌", "Invite Friends", onClick = onNavigateToInvite)
+                DrawerItem(R.drawable.invite_black, R.drawable.invite_white, "Invite Friends", onClick = onNavigateToInvite)
 
-                DrawerSectionLabel("PREFERENCES")
-                DrawerItem("⚙️", "Settings", onClick = onNavigateToSettings)
+                DrawerSectionLabel("ACCOUNT & PREFERENCES")
+                DrawerItem(R.drawable.community_black, R.drawable.community_white, "My Profile", onClick = onOpenProfile)
+                DrawerItem(R.drawable.settings_black, R.drawable.settings_white, "Settings", onClick = onNavigateToSettings)
 
-                // Dark theme switch row
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -537,9 +651,15 @@ private fun PeersDrawerSheet(
                         .clickable { onToggleTheme() }
                         .padding(vertical = 6.dp, horizontal = 8.dp),
                 ) {
-                    Text("🌙", fontSize = 20.sp)
+                    PeersDrawableIcon(
+                        lightRes = R.drawable.darktheme_black,
+                        darkRes = R.drawable.darktheme_white,
+                        contentDescription = "Dark Theme",
+                        size = 22.dp,
+                    )
                     Text(
                         "Dark Theme",
+                        fontFamily = Lato,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
@@ -552,11 +672,18 @@ private fun PeersDrawerSheet(
                     )
                 }
 
-                DrawerItem("⭐", "Rate Us", onClick = onNavigateToRateUs)
+                DrawerItem(R.drawable.rate_black, R.drawable.rate_white, "Rate Us", onClick = onNavigateToRateUs)
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                DrawerItem("🚪", "Sign Out", tint = MaterialTheme.colorScheme.error, onClick = onConfirmSignOut)
+                DrawerItem(
+                    R.drawable.logout_black,
+                    R.drawable.logout_white,
+                    "Sign Out",
+                    tint = MaterialTheme.colorScheme.error,
+                    useIconTint = true,
+                    onClick = onConfirmSignOut
+                )
             }
         }
     }
@@ -566,6 +693,7 @@ private fun PeersDrawerSheet(
 private fun DrawerSectionLabel(text: String) {
     Text(
         text,
+        fontFamily = GoogleSans,
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 10.dp, top = 14.dp, bottom = 4.dp),
@@ -574,9 +702,11 @@ private fun DrawerSectionLabel(text: String) {
 
 @Composable
 private fun DrawerItem(
-    emoji: String,
+    @DrawableRes lightIcon: Int,
+    @DrawableRes darkIcon: Int,
     label: String,
     tint: Color = MaterialTheme.colorScheme.onSurface,
+    useIconTint: Boolean = false,
     onClick: () -> Unit,
 ) {
     Row(
@@ -587,9 +717,16 @@ private fun DrawerItem(
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 8.dp),
     ) {
-        Text(emoji, fontSize = 20.sp)
+        PeersDrawableIcon(
+            lightRes = lightIcon,
+            darkRes = darkIcon,
+            contentDescription = label,
+            size = 22.dp,
+            tint = if (useIconTint) tint else null,
+        )
         Text(
             label,
+            fontFamily = Lato,
             style = MaterialTheme.typography.bodyLarge,
             color = tint,
             modifier = Modifier.padding(start = 14.dp),
@@ -599,9 +736,6 @@ private fun DrawerItem(
 
 // endregion
 
-/**
- * Launches the Google Play Store app or falls back to browser (Part 6 spec).
- */
 private fun openPlayStore(context: Context) {
     val pkg = context.packageName
     val marketUri = Uri.parse("market://details?id=$pkg")

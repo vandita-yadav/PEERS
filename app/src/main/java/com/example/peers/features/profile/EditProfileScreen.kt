@@ -1,7 +1,13 @@
 package com.example.peers.features.profile
 
+import android.content.Context
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -26,6 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AddAPhoto
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Save
@@ -48,8 +56,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -70,8 +78,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.example.peers.R
 import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.profile.components.ImageCropEditorDialog
+import com.example.peers.ui.theme.GoogleSans
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -81,6 +94,17 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private fun createEditCameraPhotoUri(context: Context): Uri {
+    val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+    val file = File(dir, "peers_edit_profile_$stamp.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+}
 
 private val allInterestsList = ProfileOptions.allInterests
 private val allNeedsList = ProfileOptions.needs
@@ -135,6 +159,33 @@ fun EditProfileScreen(
 
     var isSaving by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var rawPhotoForEditor by remember { mutableStateOf<Uri?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) rawPhotoForEditor = uri
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            pendingCameraUri?.let { rawPhotoForEditor = it }
+        }
+    }
+
+    rawPhotoForEditor?.let { uriToCrop ->
+        ImageCropEditorDialog(
+            imageUri = uriToCrop,
+            onCancel = { rawPhotoForEditor = null },
+            onSave = { _, dataUri ->
+                photoUrl = dataUri
+                rawPhotoForEditor = null
+            },
+        )
+    }
 
     // Check if any modification exists
     val hasChanges = name != (user?.name.orEmpty()) ||
@@ -265,7 +316,7 @@ fun EditProfileScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
             // ── Section 1: Avatar Picker ──────────────────────────────────────
-            EditSectionTitle("PROFILE AVATAR", "")
+            EditSectionTitle("PROFILE AVATAR")
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -287,6 +338,91 @@ fun EditProfileScreen(
                     Spacer(Modifier.height(14.dp))
 
                     Text(
+                        "Change Profile Picture",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = PeersPrimaryIndigo,
+                        modifier = Modifier.align(Alignment.Start),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    val uri = createEditCameraPhotoUri(context)
+                                    pendingCameraUri = uri
+                                    cameraLauncher.launch(uri)
+                                },
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 11.dp, horizontal = 8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddAPhoto,
+                                    contentDescription = "Take Photo",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Take Photo",
+                                    fontFamily = GoogleSans,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    galleryLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 11.dp, horizontal = 8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddPhotoAlternate,
+                                    contentDescription = "Upload Photo",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Upload Photo",
+                                    fontFamily = GoogleSans,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Text(
                         "Choose from Avatar Categories:",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
@@ -297,7 +433,7 @@ fun EditProfileScreen(
                     Spacer(Modifier.height(8.dp))
 
                     // Category Filter Chips
-                    ScrollableTabRow(
+                    PrimaryScrollableTabRow(
                         selectedTabIndex = PeersAvatars.categories.indexOf(selectedCategory).coerceAtLeast(0),
                         edgePadding = 0.dp,
                         containerColor = Color.Transparent,
@@ -389,7 +525,7 @@ fun EditProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Section 2: Basic Information ──────────────────────────────────
-            EditSectionTitle("BASIC INFORMATION", "📋")
+            EditSectionTitle("BASIC INFORMATION", R.drawable.notes_black, R.drawable.notes_white)
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -583,7 +719,7 @@ fun EditProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Section 3: Interests ──────────────────────────────────────────
-            EditSectionTitle("INTERESTS (SELECT MIN 3)", "✨")
+            EditSectionTitle("INTERESTS (SELECT MIN 3)", R.drawable.stars_black, R.drawable.stars_white)
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -592,7 +728,7 @@ fun EditProfileScreen(
             ) {
                 Column(Modifier.padding(18.dp)) {
                     Text(
-                        "Selected: ${selectedInterests.size} ${if (selectedInterests.size >= 3) "✓" else "(Need at least 3)"}",
+                        "Selected: ${selectedInterests.size} ${if (selectedInterests.size >= 3) "(Ready)" else "(Need at least 3)"}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (selectedInterests.size >= 3) Color(0xFF1B6B2E) else MaterialTheme.colorScheme.error,
@@ -632,7 +768,7 @@ fun EditProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Section 4: Needs ──────────────────────────────────────────────
-            EditSectionTitle("WHAT YOU NEED FROM PEERS (SELECT MIN 2)", "🤝")
+            EditSectionTitle("WHAT YOU NEED FROM PEERS (SELECT MIN 2)", R.drawable.handshake_black, R.drawable.handshake_white)
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -641,7 +777,7 @@ fun EditProfileScreen(
             ) {
                 Column(Modifier.padding(18.dp)) {
                     Text(
-                        "Selected: ${selectedNeeds.size} ${if (selectedNeeds.size >= 2) "✓" else "(Need at least 2)"}",
+                        "Selected: ${selectedNeeds.size} ${if (selectedNeeds.size >= 2) "(Ready)" else "(Need at least 2)"}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (selectedNeeds.size >= 2) Color(0xFF1B6B2E) else MaterialTheme.colorScheme.error,
@@ -681,7 +817,7 @@ fun EditProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Section 5: Languages Known ───────────────────────────────────
-            EditSectionTitle("LANGUAGES KNOWN (OPTIONAL)", "🗣️")
+            EditSectionTitle("LANGUAGES KNOWN (OPTIONAL)", R.drawable.community_black, R.drawable.community_white)
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -748,13 +884,24 @@ fun EditProfileScreen(
 }
 
 @Composable
-private fun EditSectionTitle(title: String, emoji: String) {
+private fun EditSectionTitle(
+    title: String,
+    @DrawableRes lightIconRes: Int? = null,
+    @DrawableRes darkIconRes: Int? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
     ) {
-        Text(emoji, fontSize = 14.sp)
-        Spacer(Modifier.width(6.dp))
+        if (lightIconRes != null && darkIconRes != null) {
+            PeersDrawableIcon(
+                lightRes = lightIconRes,
+                darkRes = darkIconRes,
+                contentDescription = title,
+                size = 15.dp,
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         Text(
             title,
             style = MaterialTheme.typography.labelSmall,

@@ -12,7 +12,7 @@ class AssistantViewModel(
 ) : ViewModel() {
 
     private val initialGreeting = ChatMessage(
-        text = "Hello! 👋 I'm your PEERS AI Guide.\n\nI can help answer your questions about student visas, finding housing, opening local bank accounts, managing monthly budgets, or applying for on-campus student jobs.\n\nAsk me anything or tap one of the quick suggestions below!",
+        text = "Hi! I'm your PEERS AI Guide. Ask me anything about campus housing, local bike or shuttle rentals, budgeting, arrival checklists, upcoming events, or student discussions—I'll point you right to what you need.",
         isUser = false
     )
 
@@ -30,6 +30,7 @@ class AssistantViewModel(
         val cleanText = userText.trim()
         if (cleanText.isBlank() || _isThinking.value) return
 
+        val historySnapshot = _messages.value
         val userMessage = ChatMessage(
             text = cleanText,
             isUser = true,
@@ -41,7 +42,7 @@ class AssistantViewModel(
 
         viewModelScope.launch {
             try {
-                val (replyText, action) = repository.getResponse(cleanText)
+                val (replyText, action) = repository.getResponse(cleanText, historySnapshot)
                 val aiMessage = ChatMessage(
                     text = replyText,
                     isUser = false,
@@ -51,7 +52,7 @@ class AssistantViewModel(
                 _messages.value = _messages.value + aiMessage
             } catch (e: Exception) {
                 val errorMessage = ChatMessage(
-                    text = "I ran into an issue connecting to the network. Please check your connection or try asking again.",
+                    text = "I ran into a connection snag while replying. Please try asking that again.",
                     isUser = false,
                     status = MessageStatus.ERROR
                 )

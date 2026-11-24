@@ -113,8 +113,10 @@ class EventsViewModel @JvmOverloads constructor(
         _myAttendance.value = prefs.getStringSet("attendance_ids", emptySet()) ?: emptySet()
 
         eventsListener = repository.observeEvents { remoteEvents ->
-            val base = if (remoteEvents.isNotEmpty()) remoteEvents else demoEvents()
-            _rawEvents.value = (loadLocalCreatedEvents() + base).distinctBy { it.id }
+            val combined = (loadLocalCreatedEvents() + remoteEvents + demoEvents())
+                .distinctBy { it.id }
+                .sortedBy { it.startMillis }
+            _rawEvents.value = combined
             _isLoading.value = false
         }
 
@@ -238,7 +240,7 @@ class EventsViewModel @JvmOverloads constructor(
             )
         }
         if (willAttend) {
-            _uiEvents.tryEmit(EventUiEvent.Message("You're attending ${event.title}! 🎉"))
+            _uiEvents.tryEmit(EventUiEvent.Message("You're attending ${event.title}!"))
         } else {
             _uiEvents.tryEmit(EventUiEvent.Message("RSVP cancelled for ${event.title}."))
         }
@@ -318,7 +320,7 @@ class EventsViewModel @JvmOverloads constructor(
             venue = venue.trim(),
             city = city.trim(),
             startMillis = startMillis,
-            emoji = emoji.ifBlank { "🎪" },
+            emoji = "",
             capacity = capacity.coerceAtLeast(10),
             attendeeCount = 1,
             createdBy = "",
@@ -332,7 +334,7 @@ class EventsViewModel @JvmOverloads constructor(
         _myAttendance.value = _myAttendance.value + newEvent.id
         prefs.edit().putStringSet("attendance_ids", _myAttendance.value).apply()
         _isCreatingEvent.value = false
-        _uiEvents.tryEmit(EventUiEvent.Message("Event '${newEvent.title}' created and RSVP'd! 🚀"))
+        _uiEvents.tryEmit(EventUiEvent.Message("Event '${newEvent.title}' created and RSVP'd!"))
 
         viewModelScope.launch {
             runCatching {

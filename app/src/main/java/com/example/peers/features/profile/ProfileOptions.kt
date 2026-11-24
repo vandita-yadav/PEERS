@@ -166,22 +166,22 @@ object ProfileOptions {
     )
 
     val categorizedInterests: Map<String, List<String>> = linkedMapOf(
-        "📚 Learning & Career" to listOf(
+        "Learning & Career" to listOf(
             "Academics & Study", "Technology", "Career & Jobs",
             "Entrepreneurship", "Freelancing", "Content Writing", "Content Creation"
         ),
-        "🎨 Creative" to listOf(
+        "Creative" to listOf(
             "Music", "Arts & Creativity", "Photography",
             "Filmography", "Dance", "Vlogging"
         ),
-        "🏃 Lifestyle & Sports" to listOf(
+        "Lifestyle & Sports" to listOf(
             "Sports", "Gym & Fitness", "Martial Arts",
             "Travel", "Food & Cooking"
         ),
-        "🎮 Entertainment" to listOf(
+        "Entertainment" to listOf(
             "Gaming", "Books", "Movies & Entertainment"
         ),
-        "🌍 Social & Community" to listOf(
+        "Social & Community" to listOf(
             "Culture & Languages", "Volunteering", "Social Events"
         )
     )
@@ -191,17 +191,17 @@ object ProfileOptions {
     }
 
     val needs = listOf(
-        "🏠 Accommodation",
-        "👥 Make Friends",
-        "🎓 University Help",
-        "💼 Jobs & Internships",
-        "📄 Visa & Documents",
-        "💰 Budget & Finance",
-        "🚇 Transportation",
-        "🏥 Healthcare",
-        "🛒 Daily Life",
-        "🎉 Events & Activities",
-        "🗣️ Language & Culture",
-        "🤝 Community Support"
+        "Accommodation",
+        "Discussion",
+        "University Help",
+        "Rentals & Transport",
+        "Visa & Documents",
+        "Budget & Finance",
+        "Transportation",
+        "Healthcare",
+        "Daily Life",
+        "Events & Activities",
+        "Language & Culture",
+        "Community Support"
     )
 }
