@@ -1,11 +1,13 @@
 package com.example.peers.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -14,24 +16,26 @@ enum class PeersThemeMode { SystemDefault, AestheticLight, NeonDark }
 
 private val NeonDarkColorScheme = darkColorScheme(
     primary = PeersPrimaryIndigo,
-    background = androidx.compose.ui.graphics.Color(0xFF0C0A18),
-    surface = androidx.compose.ui.graphics.Color(0xFF171329),
-    surfaceVariant = androidx.compose.ui.graphics.Color(0xFF25203D),
-    onBackground = androidx.compose.ui.graphics.Color(0xFFF4F0FF),
-    onSurface = androidx.compose.ui.graphics.Color(0xFFF4F0FF),
-    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFC5BCD9),
-    outline = androidx.compose.ui.graphics.Color(0xFF776B9C)
+    onPrimary = Color.White,
+    background = DarkBackground,
+    surface = DarkSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    onBackground = DarkOnBackground,
+    onSurface = DarkOnSurface,
+    onSurfaceVariant = DarkOnSurfaceVariant,
+    outline = DarkOutline,
 )
 
 private val AestheticLightColorScheme = lightColorScheme(
-    primary = androidx.compose.ui.graphics.Color(0xFF6250A4),
-    background = androidx.compose.ui.graphics.Color(0xFFFFF9F3),
-    surface = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-    surfaceVariant = androidx.compose.ui.graphics.Color(0xFFF2EAF7),
-    onBackground = androidx.compose.ui.graphics.Color(0xFF30283B),
-    onSurface = androidx.compose.ui.graphics.Color(0xFF30283B),
-    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF665C70),
-    outline = androidx.compose.ui.graphics.Color(0xFFD8CCDD)
+    primary = PeersPrimaryIndigo,
+    onPrimary = Color.White,
+    background = LightBackground, // Plain white background as requested
+    surface = LightSurface,       // Pure white surfaces
+    surfaceVariant = LightSurfaceVariant,
+    onBackground = LightOnBackground,
+    onSurface = LightOnSurface,
+    onSurfaceVariant = LightOnSurfaceVariant,
+    outline = LightOutline,
 )
 
 @Composable
@@ -42,7 +46,7 @@ fun PeersTheme(
     val darkTheme = when (mode) {
         PeersThemeMode.NeonDark -> true
         PeersThemeMode.AestheticLight -> false
-        PeersThemeMode.SystemDefault -> androidx.compose.foundation.isSystemInDarkTheme()
+        PeersThemeMode.SystemDefault -> isSystemInDarkTheme()
     }
     val colorScheme = if (darkTheme) NeonDarkColorScheme else AestheticLightColorScheme
 
@@ -57,7 +61,7 @@ fun PeersTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography, // Assuming default Typography.kt is present
+        typography = Typography,
         content = content
     )
 }

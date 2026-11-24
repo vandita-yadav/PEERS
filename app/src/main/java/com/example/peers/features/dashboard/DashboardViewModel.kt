@@ -110,7 +110,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val snap = firestore.collection("users").document(uid).get().await()
                 val authUser = auth.currentUser
-                val avatarIdx = (snap.get("avatarIndex") as? Number)?.toInt()
+                val avatarIdx = snap.get("avatarIndex")
                 _user.value = DashboardUser(
                     uid = uid,
                     name = snap.getString("name").orEmpty().ifEmpty { authUser?.displayName ?: "Peer" },
@@ -146,7 +146,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             userProfileListener = firestore.collection("users").document(uid).addSnapshotListener { snap, err ->
                 if (err != null || snap == null || !snap.exists()) return@addSnapshotListener
                 val authUser = auth.currentUser
-                val avatarIdx = (snap.get("avatarIndex") as? Number)?.toInt()
+                val avatarIdx = snap.get("avatarIndex")
                 _user.value = DashboardUser(
                     uid = uid,
                     name = snap.getString("name").orEmpty().ifEmpty { authUser?.displayName ?: "Peer" },

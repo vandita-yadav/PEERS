@@ -188,7 +188,7 @@ fun ProfileScreen(
                         user?.currentCountry?.takeIf { it.isNotBlank() }
                     ).joinToString(", ")
                     Text(
-                        "📍 $locationText",
+                        "$locationText",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.8f),
                         modifier = Modifier.padding(top = 6.dp),

@@ -89,7 +89,7 @@ data class DashboardUser(
     val expectedGraduationYear: String = "",
     val bio: String = "",
     val languagesKnown: List<String> = emptyList(),
-    val avatarIndex: Int? = null,
+    val avatarIndex: Any? = null,
 )
 
 /** A lightweight in-app notification entry. */

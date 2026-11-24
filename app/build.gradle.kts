@@ -28,6 +28,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        manifestPlaceholders["MAPS_API_KEY"] = localProperties.getProperty("MAPS_API_KEY") ?: ""
+
         buildConfigField(
             "String",
             "WEB_CLIENT_ID",
@@ -37,6 +39,11 @@ android {
             "String",
             "GEMINI_API_KEY",
             "\"${localProperties.getProperty("GEMINI_API_KEY") ?: ""}\""
+        )
+        buildConfigField(
+            "String",
+            "MAPS_API_KEY",
+            "\"${localProperties.getProperty("MAPS_API_KEY") ?: ""}\""
         )
     }
 
@@ -84,6 +91,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-svg:2.7.0")
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
@@ -95,6 +103,10 @@ dependencies {
 
     // Google Generative AI (Gemini free tier)
     implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
+
+    // Google Maps & Location services
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
 
 ksp {

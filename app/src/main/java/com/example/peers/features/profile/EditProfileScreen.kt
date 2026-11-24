@@ -40,6 +40,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -62,10 +65,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.peers.features.dashboard.DashboardUser
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
@@ -85,10 +90,10 @@ private val allInterestsList = listOf(
 )
 
 private val allNeedsList = listOf(
-    "🏠 Accommodation", "👥 Make Friends", "🎓 University Help",
-    "💼 Jobs & Internships", "📄 Visa & Documents", "💰 Budget & Finance",
-    "🚇 Transportation", "🏥 Healthcare", "🛒 Daily Life",
-    "🎉 Events & Activities", "🗣️ Language & Culture", "🤝 Community Support"
+    "Accommodation", "Make Friends", "University Help",
+    "Jobs & Internships", "Visa & Documents", "Budget & Finance",
+    "Transportation", "Healthcare", "Daily Life",
+    "Events & Activities", "Language & Culture", "Community Support"
 )
 
 private val degreeOptions = listOf("Bachelor's", "Master's", "PhD", "Diploma", "Certificate")
@@ -116,7 +121,9 @@ fun EditProfileScreen(
 
     // State initialized from user
     var name by remember { mutableStateOf(user?.name.orEmpty()) }
-    var selectedAvatar by remember { mutableStateOf(user?.avatarIndex ?: 0) }
+    val initialAvatar = PeersAvatars.normalizePath(user?.avatarIndex)
+    var selectedAvatar by remember { mutableStateOf(initialAvatar) }
+    var selectedCategory by remember { mutableStateOf("Neutral") }
     var university by remember {
         mutableStateOf(
             if (user?.university.isNullOrBlank() || universities.contains(user?.university))
@@ -144,7 +151,7 @@ fun EditProfileScreen(
 
     // Check if any modification exists
     val hasChanges = name != (user?.name.orEmpty()) ||
-            selectedAvatar != (user?.avatarIndex ?: 0) ||
+            selectedAvatar != initialAvatar ||
             university != (user?.university.orEmpty()) ||
             course != (user?.course.orEmpty()) ||
             degreeLevel != (user?.degreeLevel.orEmpty()) ||
@@ -267,7 +274,7 @@ fun EditProfileScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
             // ── Section 1: Avatar Picker ──────────────────────────────────────
-            EditSectionTitle("PROFILE AVATAR", "🧑‍🎨")
+            EditSectionTitle("PROFILE AVATAR", "")
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -280,75 +287,104 @@ fun EditProfileScreen(
                 ) {
                     PeersAvatarBadge(
                         avatarIndex = selectedAvatar,
-                        photoUrl = null, // In avatar mode
+                        photoUrl = null,
                         size = 84.dp,
                         borderWidth = 3.dp,
                         borderColor = PeersPrimaryIndigo,
                     )
 
-                    val currentDef = PeersAvatars.get(selectedAvatar)
-                    Text(
-                        currentDef.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 10.dp),
-                    )
-                    Text(
-                        currentDef.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-
                     Spacer(Modifier.height(14.dp))
 
                     Text(
-                        "Choose from 13 Predefined Avatars:",
+                        "Choose from Avatar Categories:",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = PeersPrimaryIndigo,
                         modifier = Modifier.align(Alignment.Start),
                     )
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
 
-                    // 13 Avatars Grid
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth(),
+                    // Category Filter Chips
+                    ScrollableTabRow(
+                        selectedTabIndex = PeersAvatars.categories.indexOf(selectedCategory).coerceAtLeast(0),
+                        edgePadding = 0.dp,
+                        containerColor = Color.Transparent,
+                        indicator = {},
+                        divider = {}
                     ) {
-                        PeersAvatars.list.forEach { item ->
-                            val isChosen = selectedAvatar == item.id
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isChosen) item.backgroundColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                border = if (isChosen) BorderStroke(2.dp, PeersPrimaryIndigo) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                modifier = Modifier
-                                    .clickable { selectedAvatar = item.id }
-                                    .padding(2.dp),
+                        PeersAvatars.categories.forEach { cat ->
+                            val isSelected = selectedCategory == cat
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedCategory = cat },
+                                label = { Text(cat) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PeersPrimaryIndigo,
+                                    selectedLabelColor = Color.White
+                                ),
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // 4-column grid of avatars for selected category
+                    val categoryAvatars = PeersAvatars.getAvatarsForCategory(selectedCategory)
+                    val rows = categoryAvatars.chunked(4)
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        rows.forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                ) {
-                                    Text(item.emoji, fontSize = 20.sp)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        item.title,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (isChosen) {
-                                        Spacer(Modifier.width(4.dp))
-                                        Icon(
-                                            Icons.Rounded.Check,
-                                            contentDescription = "Selected",
-                                            tint = PeersPrimaryIndigo,
-                                            modifier = Modifier.size(14.dp),
+                                rowItems.forEach { assetPath ->
+                                    val isChosen = selectedAvatar == assetPath
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .border(
+                                                width = if (isChosen) 3.dp else 1.dp,
+                                                color = if (isChosen) PeersPrimaryIndigo else MaterialTheme.colorScheme.outlineVariant,
+                                                shape = CircleShape
+                                            )
+                                            .clickable { selectedAvatar = assetPath },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = "file:///android_asset/avatars/$assetPath",
+                                            contentDescription = assetPath,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(46.dp)
+                                                .clip(CircleShape)
                                         )
+                                        if (isChosen) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .matchParentSize()
+                                                    .background(PeersPrimaryIndigo.copy(alpha = 0.25f), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
                                     }
+                                }
+                                repeat(4 - rowItems.size) {
+                                    Spacer(modifier = Modifier.size(54.dp))
                                 }
                             }
                         }

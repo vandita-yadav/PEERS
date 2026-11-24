@@ -12,18 +12,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.peers.features.auth.AuthMode
 import com.example.peers.features.auth.AuthState
 import com.example.peers.features.auth.AuthViewModel
-import com.example.peers.features.onboarding.OnboardingScreens
 import com.example.peers.features.dashboard.DashboardScreen
+import com.example.peers.features.onboarding.OnboardingScreens
 import com.example.peers.features.profile.ProfileSetupScreen
 import com.example.peers.ui.theme.PeersTheme
 import com.example.peers.ui.theme.PeersThemeMode
@@ -67,29 +68,25 @@ private fun PeersAuthApp(
     val authViewModel: AuthViewModel = viewModel()
     val authState by authViewModel.authState.collectAsState()
     val signInError by authViewModel.signInError.collectAsState()
+    val accountExistsError by authViewModel.accountExistsError.collectAsState()
 
-    // Surface sign-in failures as a toast (per docs: "Sign-in failed..." snackbar)
+    // Surface sign-in failures as a toast
     LaunchedEffect(signInError) {
         signInError?.let {
-            Toast.makeText(navController.context, "Sign-in failed: $it", Toast.LENGTH_LONG).show()
+            Toast.makeText(navController.context, it, Toast.LENGTH_LONG).show()
             authViewModel.consumeError()
         }
     }
 
     // Navigate after a successful sign-in:
     //   new user      → Profile Onboarding
-    //   returning     → Dashboard
+    //   returning     → Dashboard with NO toast or snackbar
     LaunchedEffect(authState) {
         when (val state = authState) {
             is AuthState.SignedIn -> {
                 if (state.isNewUser) {
                     navController.navigate("profile") { popUpTo("welcome") { inclusive = true } }
                 } else {
-                    Toast.makeText(
-                        navController.context,
-                        "Welcome back! You already have a PEERS account.",
-                        Toast.LENGTH_SHORT
-                    ).show()
                     navController.navigate("dashboard") { popUpTo("welcome") { inclusive = true } }
                 }
             }
@@ -100,9 +97,7 @@ private fun PeersAuthApp(
     NavHost(navController = navController, startDestination = "splash") {
         composable("splash") {
             LaunchedEffect(Unit) {
-                kotlinx.coroutines.delay(1100)
-                // Returning users with an active Firebase session AND a completed
-                // profile skip auth entirely; incomplete profiles go to onboarding.
+                kotlinx.coroutines.delay(1500) // 1.5 seconds per user request
                 val destination = if (authViewModel.isSessionActive()) {
                     if (authViewModel.isProfileCompleted()) "dashboard" else "profile"
                 } else {
@@ -112,16 +107,69 @@ private fun PeersAuthApp(
             }
             OnboardingScreens.Splash()
         }
+
         composable("welcome") {
             OnboardingScreens.Welcome(
                 isSigningIn = authState == AuthState.SigningIn,
-                onContinueWithGoogle = {
-                    authViewModel.signInWithGoogle(navController.context as ComponentActivity)
+                accountExistsError = accountExistsError,
+                onContinueWithGoogle = { mode ->
+                    authViewModel.signInWithGoogle(navController.context as ComponentActivity, mode)
+                },
+                onNavigateToManualSignUp = {
+                    navController.navigate("manual_signup")
+                },
+                onNavigateToManualLogIn = {
+                    navController.navigate("manual_login")
                 },
                 onToggleTheme = onToggleTheme,
-                isNeonDark = themeMode == PeersThemeMode.NeonDark
+                isNeonDark = themeMode == PeersThemeMode.NeonDark,
+                onDismissAccountExistsError = {
+                    authViewModel.clearAccountExistsError()
+                }
             )
         }
+
+        composable("manual_signup") {
+            OnboardingScreens.ManualSignUp(
+                isSigningIn = authState == AuthState.SigningIn,
+                accountExistsError = accountExistsError,
+                onSignUp = { name, email, password ->
+                    authViewModel.signUpManually(name, email, password)
+                },
+                onContinueWithGoogle = {
+                    authViewModel.signInWithGoogle(navController.context as ComponentActivity, AuthMode.SIGN_UP)
+                },
+                onNavigateToLogIn = {
+                    navController.navigate("manual_login") {
+                        popUpTo("manual_signup") { inclusive = true }
+                    }
+                },
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable("manual_login") {
+            OnboardingScreens.ManualLogIn(
+                isSigningIn = authState == AuthState.SigningIn,
+                onLogIn = { email, password ->
+                    authViewModel.logInManually(email, password)
+                },
+                onContinueWithGoogle = {
+                    authViewModel.signInWithGoogle(navController.context as ComponentActivity, AuthMode.LOG_IN)
+                },
+                onNavigateToSignUp = {
+                    navController.navigate("manual_signup") {
+                        popUpTo("manual_login") { inclusive = true }
+                    }
+                },
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         composable("profile") {
             ProfileSetupScreen(
                 onProfileComplete = {
@@ -131,6 +179,7 @@ private fun PeersAuthApp(
                 }
             )
         }
+
         composable("dashboard") {
             DashboardScreen(
                 themeMode = themeMode,
