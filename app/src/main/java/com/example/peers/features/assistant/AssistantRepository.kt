@@ -2,10 +2,12 @@ package com.example.peers.features.assistant
 
 import android.util.Log
 import com.example.peers.BuildConfig
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class AssistantRepository {
 
@@ -29,13 +31,65 @@ class AssistantRepository {
         - If asked about topics completely unrelated to student life or PEERS, politely explain that you focus on PEERS student resources and offer help with campus housing, transport, events, or budgeting.
     """.trimIndent()
 
-    private val candidateModels = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash")
-
-    private fun buildModel(modelName: String): GenerativeModel = GenerativeModel(
-        modelName = modelName,
-        apiKey = geminiKey,
-        systemInstruction = content { text(systemPrompt) }
+    private val candidateModels = listOf(
+        "gemini-3.5-flash",
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-flash-latest",
+        "gemini-3.1-flash-lite",
     )
+
+    private fun callGeminiRest(modelName: String, contextBlock: String): String? {
+        val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent")
+        val payload = JSONObject().apply {
+            put(
+                "systemInstruction",
+                JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt)))
+            )
+            put(
+                "contents",
+                JSONArray().put(
+                    JSONObject()
+                        .put("role", "user")
+                        .put("parts", JSONArray().put(JSONObject().put("text", contextBlock)))
+                )
+            )
+        }.toString()
+
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 12_000
+            readTimeout = 20_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            setRequestProperty("x-goog-api-key", geminiKey)
+        }
+        return try {
+            conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) {
+                Log.w("AssistantRepository", "Model $modelName HTTP $code: $body")
+                return null
+            }
+            val json = JSONObject(body)
+            val candidates = json.optJSONArray("candidates") ?: return null
+            if (candidates.length() == 0) return null
+            val parts = candidates.getJSONObject(0)
+                .optJSONObject("content")
+                ?.optJSONArray("parts")
+                ?: return null
+            buildString {
+                for (i in 0 until parts.length()) {
+                    val text = parts.optJSONObject(i)?.optString("text").orEmpty()
+                    if (text.isNotBlank()) append(text)
+                }
+            }.trim().ifBlank { null }
+        } finally {
+            conn.disconnect()
+        }
+    }
 
     suspend fun getResponse(
         userMessage: String,
@@ -56,8 +110,7 @@ class AssistantRepository {
 
             for (modelName in candidateModels) {
                 try {
-                    val response = buildModel(modelName).generateContent(contextBlock)
-                    val text = response.text?.trim()
+                    val text = callGeminiRest(modelName, contextBlock)
                     if (!text.isNullOrBlank()) {
                         return@withContext (text to inferAction(text, userMessage))
                     }
