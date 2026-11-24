@@ -21,10 +21,10 @@ android {
 
     defaultConfig {
         applicationId = "com.example.peers"
-        minSdk = 33
-        targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 2
+        versionName = "1.2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -47,11 +47,22 @@ android {
         )
     }
 
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        dex {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
     compileOptions {
