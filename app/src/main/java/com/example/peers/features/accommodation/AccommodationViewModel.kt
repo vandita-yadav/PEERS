@@ -239,6 +239,45 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         _message.value = "Review reported. Our team will take a look."
     }
 
+    fun editReview(listing: AccommodationListing, review: AccommodationReview, newRating: Int, newText: String) {
+        val clampedRating = newRating.coerceIn(1, 5)
+        val trimmed = newText.trim()
+        if (trimmed.isBlank()) return
+
+        val updatedReview = review.copy(rating = clampedRating, text = trimmed)
+        val existing = _reviews.value[listing.id].orEmpty()
+        _reviews.value = _reviews.value + (listing.id to existing.map { if (it.id == review.id) updatedReview else it })
+
+        val count = listing.reviewCount.coerceAtLeast(1)
+        val adjustedTotal = (listing.rating * count) - review.rating + clampedRating
+        val newAverage = (adjustedTotal / count).coerceIn(0.0, 5.0)
+        val roundedAverage = (newAverage * 10).toInt() / 10.0
+        updateListing(listing.id) { it.copy(rating = roundedAverage) }
+        _message.value = "Review updated."
+
+        viewModelScope.launch {
+            runCatching { repository.addReview(listing.id, updatedReview, roundedAverage, count) }
+        }
+    }
+
+    fun deleteReview(listing: AccommodationListing, review: AccommodationReview) {
+        val existing = _reviews.value[listing.id].orEmpty()
+        _reviews.value = _reviews.value + (listing.id to existing.filter { it.id != review.id })
+        _reviewedIds.value = _reviewedIds.value - listing.id
+
+        val oldCount = listing.reviewCount.coerceAtLeast(1)
+        val newCount = (oldCount - 1).coerceAtLeast(0)
+        val newAverage = if (newCount == 0) 0.0
+        else (((listing.rating * oldCount) - review.rating) / newCount).coerceIn(0.0, 5.0)
+        val roundedAverage = (newAverage * 10).toInt() / 10.0
+        updateListing(listing.id) { it.copy(rating = roundedAverage, reviewCount = newCount) }
+        _message.value = "Review deleted."
+
+        viewModelScope.launch {
+            runCatching { repository.deleteReview(listing.id, roundedAverage, newCount) }
+        }
+    }
+
     /** Sends a roommate request with only the contact fields the student chose. */
     fun sendRoommateRequest(
         listing: AccommodationListing,

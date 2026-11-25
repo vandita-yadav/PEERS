@@ -54,7 +54,6 @@ import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersSky
 
-private val peerEmojis = listOf("🧑🏿", "👩🏿", "👦🏽", "👧🏼", "👩🏽", "🧔🏽", "🧕🏾")
 private val peerPastels = listOf(PeersLavender, PeersSky, PeersMint, Color(0xFFFDE4D0))
 
 /**
@@ -125,8 +124,10 @@ fun PeerProfileSheet(
                         .background(peerPastels[peer.avatarIndex.mod(peerPastels.size)]),
                 ) {
                     Text(
-                        peerEmojis[peer.avatarIndex.mod(peerEmojis.size)],
-                        fontSize = 42.sp,
+                        peer.name.firstOrNull()?.uppercase() ?: "P",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1D1B30),
                     )
                 }
             }
@@ -144,7 +145,7 @@ fun PeerProfileSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "🎓 ${peer.university}   📍 ${peer.city}",
+                "${peer.university}  ·  ${peer.city}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
@@ -236,9 +237,8 @@ fun PeerProfileSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         ) {
-                            Text(reason.emoji, fontSize = 12.sp)
                             Text(
-                                " ${reason.label}",
+                                reason.label,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )

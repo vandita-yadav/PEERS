@@ -77,6 +77,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.peers.R
+import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
@@ -85,14 +89,29 @@ import com.example.peers.ui.theme.PeersSky
 @Composable
 fun AssistantScreen(
     onBack: () -> Unit,
+    user: DashboardUser? = null,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
+    initialPrompt: String? = null,
+    onInitialPromptConsumed: () -> Unit = {},
     onNavigateToChecklist: () -> Unit = {},
     onNavigateToBudget: () -> Unit = {},
     onNavigateToAccommodation: () -> Unit = {},
     onNavigateToCommunity: () -> Unit = {},
+    onNavigateToRentals: () -> Unit = {},
+    onNavigateToEvents: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AssistantViewModel = viewModel()
 ) {
     BackHandler { onBack() }
+
+    LaunchedEffect(initialPrompt) {
+        if (!initialPrompt.isNullOrBlank()) {
+            viewModel.sendMessage(initialPrompt)
+            onInitialPromptConsumed()
+        }
+    }
 
     val messages by viewModel.messages.collectAsState()
     val isThinking by viewModel.isThinking.collectAsState()
@@ -136,15 +155,26 @@ fun AssistantScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
             .imePadding()
     ) {
-        // Top App Bar
-        AssistantTopBar(
-            isGeminiLive = viewModel.isGeminiLive,
+        PeersSubScreenHeader(
+            title = "PEERS AI Guide",
+            subtitle = if (viewModel.isGeminiLive) "Gemini AI · Student Advisor" else "PEERS Student Guide",
+            user = user,
+            unreadCount = unreadCount,
             onBack = onBack,
-            onClearChat = { showClearDialog = true }
+            onProfileClick = onProfileClick,
+            onBellClick = onBellClick,
+            trailingAction = {
+                IconButton(onClick = { showClearDialog = true }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteOutline,
+                        contentDescription = "Clear Chat",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            },
         )
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -179,7 +209,8 @@ fun AssistantScreen(
                             AssistantActionType.OPEN_BUDGET -> onNavigateToBudget()
                             AssistantActionType.OPEN_ACCOMMODATION -> onNavigateToAccommodation()
                             AssistantActionType.OPEN_COMMUNITY -> onNavigateToCommunity()
-                            else -> {}
+                            AssistantActionType.OPEN_RENTALS -> onNavigateToRentals()
+                            AssistantActionType.OPEN_EVENTS -> onNavigateToEvents()
                         }
                     }
                 )
@@ -243,7 +274,12 @@ private fun AssistantTopBar(
                 .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center
         ) {
-            Text("✨", fontSize = 20.sp)
+            PeersDrawableIcon(
+                lightRes = R.drawable.aibot_black,
+                darkRes = R.drawable.aibot_white,
+                contentDescription = "PEERS AI Guide",
+                size = 22.dp,
+            )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -266,7 +302,7 @@ private fun AssistantTopBar(
                 )
             }
             Text(
-                text = if (isGeminiLive) "Powered by Gemini AI • Study Abroad" else "Study Abroad Knowledge Engine",
+                text = if (isGeminiLive) "Powered by Gemini AI · PEERS Guide" else "PEERS Student Guide",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -306,8 +342,6 @@ private fun PromptSuggestionsRibbon(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = item.emoji, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = item.label,
                         style = MaterialTheme.typography.labelMedium,
@@ -340,7 +374,12 @@ private fun MessageBubble(
                     .background(PeersLavender.copy(alpha = 0.35f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✨", fontSize = 16.sp)
+                PeersDrawableIcon(
+                    lightRes = R.drawable.aibot_black,
+                    darkRes = R.drawable.aibot_white,
+                    contentDescription = "AI",
+                    size = 18.dp,
+                )
             }
             Spacer(modifier = Modifier.width(8.dp))
         }

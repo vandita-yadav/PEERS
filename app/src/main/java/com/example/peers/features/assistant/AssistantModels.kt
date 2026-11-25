@@ -13,7 +13,8 @@ enum class AssistantActionType {
     OPEN_BUDGET,
     OPEN_ACCOMMODATION,
     OPEN_EVENTS,
-    OPEN_COMMUNITY
+    OPEN_COMMUNITY,
+    OPEN_RENTALS
 }
 
 data class AssistantAction(
@@ -35,50 +36,43 @@ data class PromptSuggestion(
     val label: String,
     val prompt: String,
     val category: String,
-    val emoji: String
 )
 
 val defaultPromptSuggestions = listOf(
     PromptSuggestion(
-        id = "visa_hours",
-        label = "Part-Time Work Limits",
-        prompt = "What are the legal work hour limits for international students on student visas (like F-1 or UK Student Visa)?",
-        category = "Visa & Legal",
-        emoji = "🛂"
-    ),
-    PromptSuggestion(
-        id = "bank_account",
-        label = "Open Bank Account",
-        prompt = "How do I open a student bank account abroad without proof of local credit history?",
-        category = "Finances",
-        emoji = "💰"
+        id = "rentals_transport",
+        label = "Local Rentals & Transport",
+        prompt = "What are the best budget bike, scooty, or cycle rental options and cab/shuttle tips for students on PEERS?",
+        category = "Transport",
     ),
     PromptSuggestion(
         id = "lease_tips",
-        label = "Lease & Flat Inspection",
-        prompt = "What should an international student inspect and verify before signing a rental lease agreement?",
-        category = "Housing",
-        emoji = "🏠"
+        label = "Lease & Housing Check",
+        prompt = "What should a student inspect and verify before booking a PG or flat on PEERS?",
+        category = "Accommodation",
     ),
     PromptSuggestion(
-        id = "campus_jobs",
-        label = "Finding On-Campus Jobs",
-        prompt = "What are the most effective ways to find and apply for on-campus student assistant jobs?",
-        category = "Career",
-        emoji = "🎓"
+        id = "budget_plan",
+        label = "Monthly Student Budget",
+        prompt = "How should I plan my monthly rent, food, and transit expenses using the PEERS Budget Planner?",
+        category = "Budget",
     ),
     PromptSuggestion(
-        id = "health_insurance",
-        label = "Health Insurance & Doctors",
-        prompt = "How does student health insurance work abroad, and how do I register with a local doctor or clinic?",
-        category = "Health",
-        emoji = "🏥"
+        id = "campus_events",
+        label = "Campus Events & Clubs",
+        prompt = "How can I find upcoming workshops, meetups, and student activities inside PEERS?",
+        category = "Events",
     ),
     PromptSuggestion(
-        id = "packing_essentials",
-        label = "Packing Essentials",
-        prompt = "What essential items and documents should international students pack before their flight?",
-        category = "Arrival",
-        emoji = "✈️"
-    )
+        id = "visa_checklist",
+        label = "Arrival & Visa Checklist",
+        prompt = "What key documents and tasks should I finish in my first week using the Student Checklist?",
+        category = "Checklist",
+    ),
+    PromptSuggestion(
+        id = "forum_discussion",
+        label = "Peer Discussions",
+        prompt = "How can I ask questions and get advice from seniors in the PEERS Discussion Forum?",
+        category = "Community",
+    ),
 )

@@ -1,5 +1,6 @@
 package com.example.peers.features.onboarding
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -17,9 +18,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -29,7 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
@@ -280,6 +283,10 @@ object OnboardingScreens {
         var showChoiceSheet by remember { mutableStateOf(false) }
         var activeAuthMode by remember { mutableStateOf(AuthMode.SIGN_UP) }
 
+        BackHandler(enabled = showChoiceSheet) {
+            showChoiceSheet = false
+        }
+
         val pagerState = rememberPagerState(pageCount = { carouselSlides.size })
 
         // Auto-slideshow scrolling
@@ -296,7 +303,8 @@ object OnboardingScreens {
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .systemBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ── Top Bar: Dark Mode Half Moon Icon Button ────────────────────
@@ -651,6 +659,7 @@ object OnboardingScreens {
     fun ManualSignUp(
         isSigningIn: Boolean,
         accountExistsError: String?,
+        signInError: String? = null,
         onSignUp: (String, String, String) -> Unit,
         onContinueWithGoogle: () -> Unit,
         onNavigateToLogIn: () -> Unit,
@@ -669,8 +678,10 @@ object OnboardingScreens {
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
+                .systemBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             // Header with Back Button
             Row(
@@ -679,7 +690,7 @@ object OnboardingScreens {
             ) {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = MaterialTheme.colorScheme.onBackground
                     )
@@ -711,8 +722,9 @@ object OnboardingScreens {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Returning account error banner
-            if (accountExistsError != null) {
+            // Returning account or general auth error banner
+            val displayError = accountExistsError ?: signInError
+            if (displayError != null) {
                 Spacer(Modifier.height(14.dp))
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -732,7 +744,7 @@ object OnboardingScreens {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = accountExistsError,
+                            text = displayError,
                             color = Color(0xFFB01D16),
                             fontSize = 13.5.sp,
                             fontFamily = GoogleSans,
@@ -964,6 +976,7 @@ object OnboardingScreens {
     @Composable
     fun ManualLogIn(
         isSigningIn: Boolean,
+        signInError: String? = null,
         onLogIn: (String, String) -> Unit,
         onContinueWithGoogle: () -> Unit,
         onNavigateToSignUp: () -> Unit,
@@ -979,8 +992,10 @@ object OnboardingScreens {
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
+                .systemBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             // Header with Back Button
             Row(
@@ -989,7 +1004,7 @@ object OnboardingScreens {
             ) {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = MaterialTheme.colorScheme.onBackground
                     )
@@ -1020,6 +1035,37 @@ object OnboardingScreens {
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // General auth error banner
+            if (signInError != null) {
+                Spacer(Modifier.height(14.dp))
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF2F0)),
+                    border = BorderStroke(1.dp, Color(0xFFFFA39E)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = Color(0xFFE04A41),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = signInError,
+                            color = Color(0xFFB01D16),
+                            fontSize = 13.5.sp,
+                            fontFamily = GoogleSans,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
 
             Spacer(Modifier.height(28.dp))
 

@@ -1,7 +1,16 @@
 package com.example.peers.features.profile
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -26,6 +35,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AddAPhoto
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Save
@@ -48,8 +59,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -70,8 +81,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
+import com.example.peers.R
 import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.profile.components.ImageCropEditorDialog
+import com.example.peers.ui.theme.GoogleSans
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -81,32 +97,23 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-private val allInterestsList = listOf(
-    "Academics & Study", "Technology", "Career & Jobs", "Entrepreneurship", "Coding",
-    "Music", "Arts & Creativity", "Photography", "Filmography", "Dance",
-    "Sports", "Gym & Fitness", "Travel", "Food & Cooking", "Gaming",
-    "Books & Reading", "Movies & TV", "Culture & Languages", "Volunteering"
-)
+private fun createEditCameraPhotoUri(context: Context): Uri {
+    val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+    val file = File(dir, "peers_edit_profile_$stamp.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+}
 
-private val allNeedsList = listOf(
-    "Accommodation", "Make Friends", "University Help",
-    "Jobs & Internships", "Visa & Documents", "Budget & Finance",
-    "Transportation", "Healthcare", "Daily Life",
-    "Events & Activities", "Language & Culture", "Community Support"
-)
-
-private val degreeOptions = listOf("Bachelor's", "Master's", "PhD", "Diploma", "Certificate")
-private val yearOptions = listOf("1st Year", "2nd Year", "3rd Year", "4th Year", "Final Year", "Graduate")
-private val universities = listOf(
-    "Lovely Professional University",
-    "Delhi University",
-    "VIT Vellore",
-    "BITS Pilani",
-    "IIT Delhi",
-    "University of Toronto",
-    "Other"
-)
+private val allInterestsList = ProfileOptions.allInterests
+private val allNeedsList = ProfileOptions.needs
+private val degreeOptions = ProfileOptions.degreeLevels
+private val yearOptions = ProfileOptions.studyYears
+private val universities = ProfileOptions.universities
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -123,6 +130,7 @@ fun EditProfileScreen(
     var name by remember { mutableStateOf(user?.name.orEmpty()) }
     val initialAvatar = PeersAvatars.normalizePath(user?.avatarIndex)
     var selectedAvatar by remember { mutableStateOf(initialAvatar) }
+    var photoUrl by remember { mutableStateOf(user?.photoUrl.orEmpty()) }
     var selectedCategory by remember { mutableStateOf("Neutral") }
     var university by remember {
         mutableStateOf(
@@ -140,18 +148,67 @@ fun EditProfileScreen(
     var expectedGraduationYear by remember { mutableStateOf(user?.expectedGraduationYear.orEmpty()) }
     var countryOfOrigin by remember { mutableStateOf(user?.countryOfOrigin.orEmpty()) }
     var currentCountry by remember { mutableStateOf(user?.currentCountry.orEmpty()) }
+    var currentState by remember { mutableStateOf(user?.currentState.orEmpty()) }
     var currentCity by remember { mutableStateOf(user?.city.orEmpty()) }
+    var phoneCountryCode by remember { mutableStateOf(user?.phoneCountryCode.orEmpty().ifBlank { "+91" }) }
+    var phoneNumber by remember { mutableStateOf(user?.phoneNumber.orEmpty()) }
     var bio by remember { mutableStateOf(user?.bio.orEmpty()) }
+    var selectedLanguages by remember { mutableStateOf(user?.languagesKnown.orEmpty().toSet()) }
     var selectedInterests by remember { mutableStateOf(user?.interests.orEmpty().toSet()) }
-    var selectedNeeds by remember { mutableStateOf(user?.needs.orEmpty().toSet()) }
+    var selectedNeeds by remember {
+        mutableStateOf(
+            user?.needs.orEmpty().map { saved ->
+                allNeedsList.firstOrNull { opt -> opt == saved || opt.contains(saved, ignoreCase = true) } ?: saved
+            }.toSet()
+        )
+    }
 
     var isSaving by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
-    var showAvatarPicker by remember { mutableStateOf(false) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var rawPhotoForEditor by remember { mutableStateOf<Uri?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) rawPhotoForEditor = uri
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            pendingCameraUri?.let { rawPhotoForEditor = it }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = createEditCameraPhotoUri(context)
+            pendingCameraUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Camera permission is required to take a photo.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    rawPhotoForEditor?.let { uriToCrop ->
+        ImageCropEditorDialog(
+            imageUri = uriToCrop,
+            onCancel = { rawPhotoForEditor = null },
+            onSave = { _, dataUri ->
+                photoUrl = dataUri
+                rawPhotoForEditor = null
+            },
+        )
+    }
 
     // Check if any modification exists
     val hasChanges = name != (user?.name.orEmpty()) ||
             selectedAvatar != initialAvatar ||
+            photoUrl != (user?.photoUrl.orEmpty()) ||
             university != (user?.university.orEmpty()) ||
             course != (user?.course.orEmpty()) ||
             degreeLevel != (user?.degreeLevel.orEmpty()) ||
@@ -159,8 +216,12 @@ fun EditProfileScreen(
             expectedGraduationYear != (user?.expectedGraduationYear.orEmpty()) ||
             countryOfOrigin != (user?.countryOfOrigin.orEmpty()) ||
             currentCountry != (user?.currentCountry.orEmpty()) ||
+            currentState != (user?.currentState.orEmpty()) ||
             currentCity != (user?.city.orEmpty()) ||
+            phoneCountryCode != (user?.phoneCountryCode.orEmpty().ifBlank { "+91" }) ||
+            phoneNumber != (user?.phoneNumber.orEmpty()) ||
             bio != (user?.bio.orEmpty()) ||
+            selectedLanguages != (user?.languagesKnown.orEmpty().toSet()) ||
             selectedInterests != (user?.interests.orEmpty().toSet()) ||
             selectedNeeds != (user?.needs.orEmpty().toSet())
 
@@ -218,6 +279,7 @@ fun EditProfileScreen(
                                 val data = mapOf(
                                     "name" to name.trim(),
                                     "avatarIndex" to selectedAvatar,
+                                    "photoUrl" to photoUrl,
                                     "university" to finalUni,
                                     "course" to course.trim(),
                                     "degreeLevel" to degreeLevel,
@@ -225,8 +287,12 @@ fun EditProfileScreen(
                                     "expectedGraduationYear" to expectedGraduationYear.trim(),
                                     "countryOfOrigin" to countryOfOrigin.trim(),
                                     "currentCountry" to currentCountry.trim(),
+                                    "currentState" to currentState.trim(),
                                     "currentCity" to currentCity.trim(),
+                                    "phoneCountryCode" to phoneCountryCode.trim(),
+                                    "phoneNumber" to phoneNumber.trim(),
                                     "bio" to bio.trim(),
+                                    "languagesKnown" to selectedLanguages.toList(),
                                     "interests" to selectedInterests.toList(),
                                     "needs" to selectedNeeds.toList(),
                                 )
@@ -274,7 +340,7 @@ fun EditProfileScreen(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
             // ── Section 1: Avatar Picker ──────────────────────────────────────
-            EditSectionTitle("PROFILE AVATAR", "")
+            EditSectionTitle("PROFILE AVATAR")
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -286,12 +352,103 @@ fun EditProfileScreen(
                     modifier = Modifier.fillMaxWidth().padding(18.dp),
                 ) {
                     PeersAvatarBadge(
-                        avatarIndex = selectedAvatar,
-                        photoUrl = null,
+                        avatarIndex = if (photoUrl.isBlank()) selectedAvatar else null,
+                        photoUrl = photoUrl.takeIf { it.isNotBlank() },
                         size = 84.dp,
                         borderWidth = 3.dp,
                         borderColor = PeersPrimaryIndigo,
                     )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Text(
+                        "Change Profile Picture",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = PeersPrimaryIndigo,
+                        modifier = Modifier.align(Alignment.Start),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                                        PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        val uri = createEditCameraPhotoUri(context)
+                                        pendingCameraUri = uri
+                                        cameraLauncher.launch(uri)
+                                    } else {
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                    }
+                                },
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 11.dp, horizontal = 8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddAPhoto,
+                                    contentDescription = "Take Photo",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Take Photo",
+                                    fontFamily = GoogleSans,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    galleryLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 11.dp, horizontal = 8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddPhotoAlternate,
+                                    contentDescription = "Upload Photo",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Upload Photo",
+                                    fontFamily = GoogleSans,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(Modifier.height(14.dp))
 
@@ -306,7 +463,7 @@ fun EditProfileScreen(
                     Spacer(Modifier.height(8.dp))
 
                     // Category Filter Chips
-                    ScrollableTabRow(
+                    PrimaryScrollableTabRow(
                         selectedTabIndex = PeersAvatars.categories.indexOf(selectedCategory).coerceAtLeast(0),
                         edgePadding = 0.dp,
                         containerColor = Color.Transparent,
@@ -344,7 +501,7 @@ fun EditProfileScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
                             ) {
                                 rowItems.forEach { assetPath ->
-                                    val isChosen = selectedAvatar == assetPath
+                                    val isChosen = photoUrl.isBlank() && selectedAvatar == assetPath
                                     Box(
                                         modifier = Modifier
                                             .size(54.dp)
@@ -355,7 +512,10 @@ fun EditProfileScreen(
                                                 color = if (isChosen) PeersPrimaryIndigo else MaterialTheme.colorScheme.outlineVariant,
                                                 shape = CircleShape
                                             )
-                                            .clickable { selectedAvatar = assetPath },
+                                            .clickable {
+                                                selectedAvatar = assetPath
+                                                photoUrl = ""
+                                            },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         AsyncImage(
@@ -395,7 +555,7 @@ fun EditProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Section 2: Basic Information ──────────────────────────────────
-            EditSectionTitle("BASIC INFORMATION", "📋")
+            EditSectionTitle("BASIC INFORMATION", R.drawable.notes_black, R.drawable.notes_white)
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -544,14 +704,26 @@ fun EditProfileScreen(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
-                            value = currentCity,
-                            onValueChange = { currentCity = it },
-                            label = { Text("Current City") },
-                            placeholder = { Text("e.g. Phagwara / Jalandhar") },
+                            value = currentState,
+                            onValueChange = { currentState = it },
+                            label = { Text("Current State") },
+                            placeholder = { Text("e.g. Punjab") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                         )
+                        OutlinedTextField(
+                            value = currentCity,
+                            onValueChange = { currentCity = it },
+                            label = { Text("Current City") },
+                            placeholder = { Text("e.g. Phagwara") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
                             value = currentCountry,
                             onValueChange = { currentCountry = it },
@@ -561,17 +733,37 @@ fun EditProfileScreen(
                             shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                         )
+                        OutlinedTextField(
+                            value = countryOfOrigin,
+                            onValueChange = { countryOfOrigin = it },
+                            label = { Text("Country of Origin") },
+                            placeholder = { Text("e.g. India") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
                     }
 
-                    OutlinedTextField(
-                        value = countryOfOrigin,
-                        onValueChange = { countryOfOrigin = it },
-                        label = { Text("Country of Origin") },
-                        placeholder = { Text("e.g. India") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        singleLine = true,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = phoneCountryCode,
+                            onValueChange = { phoneCountryCode = it },
+                            label = { Text("Code") },
+                            placeholder = { Text("+91") },
+                            modifier = Modifier.weight(0.32f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = phoneNumber,
+                            onValueChange = { phoneNumber = it.filter(Char::isDigit).take(15) },
+                            label = { Text("Phone Number") },
+                            placeholder = { Text("9876543210") },
+                            modifier = Modifier.weight(0.68f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
+                    }
 
                     OutlinedTextField(
                         value = bio,
@@ -589,7 +781,7 @@ fun EditProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Section 3: Interests ──────────────────────────────────────────
-            EditSectionTitle("INTERESTS (SELECT MIN 3)", "✨")
+            EditSectionTitle("INTERESTS (SELECT MIN 3)", R.drawable.stars_black, R.drawable.stars_white)
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -598,7 +790,7 @@ fun EditProfileScreen(
             ) {
                 Column(Modifier.padding(18.dp)) {
                     Text(
-                        "Selected: ${selectedInterests.size} ${if (selectedInterests.size >= 3) "✓" else "(Need at least 3)"}",
+                        "Selected: ${selectedInterests.size} ${if (selectedInterests.size >= 3) "(Ready)" else "(Need at least 3)"}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (selectedInterests.size >= 3) Color(0xFF1B6B2E) else MaterialTheme.colorScheme.error,
@@ -638,7 +830,7 @@ fun EditProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Section 4: Needs ──────────────────────────────────────────────
-            EditSectionTitle("WHAT YOU NEED FROM PEERS (SELECT MIN 2)", "🤝")
+            EditSectionTitle("WHAT YOU NEED FROM PEERS (SELECT MIN 2)", R.drawable.handshake_black, R.drawable.handshake_white)
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -647,7 +839,7 @@ fun EditProfileScreen(
             ) {
                 Column(Modifier.padding(18.dp)) {
                     Text(
-                        "Selected: ${selectedNeeds.size} ${if (selectedNeeds.size >= 2) "✓" else "(Need at least 2)"}",
+                        "Selected: ${selectedNeeds.size} ${if (selectedNeeds.size >= 2) "(Ready)" else "(Need at least 2)"}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (selectedNeeds.size >= 2) Color(0xFF1B6B2E) else MaterialTheme.colorScheme.error,
@@ -684,6 +876,45 @@ fun EditProfileScreen(
                 }
             }
 
+            Spacer(Modifier.height(20.dp))
+
+            // ── Section 5: Languages Known ───────────────────────────────────
+            EditSectionTitle("LANGUAGES KNOWN (OPTIONAL)", R.drawable.community_black, R.drawable.community_white)
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                ) {
+                    ProfileOptions.languages.forEach { lang ->
+                        val isSelected = selectedLanguages.contains(lang)
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = if (isSelected) PeersPrimaryIndigo else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.clickable {
+                                selectedLanguages = if (isSelected) {
+                                    selectedLanguages - lang
+                                } else {
+                                    selectedLanguages + lang
+                                }
+                            },
+                        ) {
+                            Text(
+                                lang,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(32.dp))
         }
     }
@@ -715,13 +946,24 @@ fun EditProfileScreen(
 }
 
 @Composable
-private fun EditSectionTitle(title: String, emoji: String) {
+private fun EditSectionTitle(
+    title: String,
+    @DrawableRes lightIconRes: Int? = null,
+    @DrawableRes darkIconRes: Int? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
     ) {
-        Text(emoji, fontSize = 14.sp)
-        Spacer(Modifier.width(6.dp))
+        if (lightIconRes != null && darkIconRes != null) {
+            PeersDrawableIcon(
+                lightRes = lightIconRes,
+                darkRes = darkIconRes,
+                contentDescription = title,
+                size = 15.dp,
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         Text(
             title,
             style = MaterialTheme.typography.labelSmall,

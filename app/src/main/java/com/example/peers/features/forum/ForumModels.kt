@@ -3,8 +3,7 @@ package com.example.peers.features.forum
 import java.util.concurrent.TimeUnit
 
 enum class ForumCommunityType(val label: String) {
-    UNIVERSITY("University"),
-    CITY("City"),
+    TOPIC("Topic"),
 }
 
 data class ForumCommunity(
@@ -25,6 +24,7 @@ data class ForumPost(
     val authorEmoji: String,
     val communityId: String,
     val communityName: String,
+    val university: String = "",
     val upvoteCount: Int,
     val commentCount: Int,
     val createdAt: Long,
@@ -48,74 +48,79 @@ enum class ReportReason(val label: String) {
     OTHER("Something else"),
 }
 
-/** One-off UI side effects (CO2: SharedFlow for events, not state). */
 sealed interface ForumUiEvent {
     data class Message(val text: String) : ForumUiEvent
 }
 
 object ForumDemo {
+    /** College-independent discussion categories inside every student's own campus forum. */
     val communities: List<ForumCommunity> = listOf(
-        ForumCommunity("lpu", "LPU Campus", ForumCommunityType.UNIVERSITY, "🎓", "Lovely Professional University", 1240),
-        ForumCommunity("du", "DU Circle", ForumCommunityType.UNIVERSITY, "🏛️", "University of Delhi", 860),
-        ForumCommunity("vit", "VIT Vellore", ForumCommunityType.UNIVERSITY, "⚙️", "VIT Vellore", 720),
-        ForumCommunity("delhi", "Delhi Students", ForumCommunityType.CITY, "🌆", "New Delhi", 1100),
-        ForumCommunity("mumbai", "Mumbai Students", ForumCommunityType.CITY, "🌊", "Mumbai", 980),
-        ForumCommunity("bengaluru", "Bengaluru Students", ForumCommunityType.CITY, "🌿", "Bengaluru", 890),
+        ForumCommunity("general", "General", ForumCommunityType.TOPIC, "", "Campus questions & peer advice", 640),
+        ForumCommunity("events", "Events", ForumCommunityType.TOPIC, "", "Cultural fests, DSW events & workshops", 520),
+        ForumCommunity("placements", "Placements", ForumCommunityType.TOPIC, "", "Internships, mock interviews & prep", 480),
+        ForumCommunity("pg_rooms", "PG & Rooms", ForumCommunityType.TOPIC, "", "Hostels, off-campus PGs & flatmates", 590),
+        ForumCommunity("academics", "Academics", ForumCommunityType.TOPIC, "", "Subjects, labs, exams & electives", 410),
+        ForumCommunity("campus_life", "Campus Life", ForumCommunityType.TOPIC, "", "Food spots, clubs & transport", 530),
     )
 
-    fun posts(now: Long = System.currentTimeMillis()): List<ForumPost> {
+    fun posts(university: String = "Lovely Professional University", now: Long = System.currentTimeMillis()): List<ForumPost> {
+        val uni = university.ifBlank { "Your Campus" }
         fun ago(minutes: Long) = now - TimeUnit.MINUTES.toMillis(minutes)
         return listOf(
             ForumPost(
                 id = "demo-post-1",
-                title = "Cheapest way to get from Delhi airport to Phagwara?",
-                body = "Landing at T3 around 11pm next Friday. Is the overnight bus from Kashmere Gate still the best option, or should I pool a cab with other students?",
+                title = "PG rooms & apartments worth visiting near campus?",
+                body = "I am shortlisting PGs around Law Gate, Green Valley, and Meheru at $uni. How is Sardar Apartments or Five 50 for inverter backup and Wi-Fi?",
                 authorUid = "demo-aisha",
                 authorName = "Aisha Verma",
-                authorEmoji = "👩🏽",
-                communityId = "lpu",
-                communityName = "LPU Campus",
+                authorEmoji = "",
+                communityId = "pg_rooms",
+                communityName = "PG & Rooms",
+                university = uni,
                 upvoteCount = 23,
-                commentCount = 8,
+                commentCount = 2,
                 createdAt = ago(42),
             ),
             ForumPost(
                 id = "demo-post-2",
-                title = "Best places to find part-time work near campus",
-                body = "I can do weekend shifts and some remote content editing. Where do students usually find flexible work that doesn't clash with classes?",
+                title = "Placement prep & internship drive schedule this semester",
+                body = "Seniors at $uni, which DSA topics and resume templates helped you clear Round 1 technical interviews last month?",
                 authorUid = "demo-rohan",
                 authorName = "Rohan Mehta",
-                authorEmoji = "🧔🏽",
-                communityId = "delhi",
-                communityName = "Delhi Students",
+                authorEmoji = "",
+                communityId = "placements",
+                communityName = "Placements",
+                university = uni,
                 upvoteCount = 41,
-                commentCount = 14,
+                commentCount = 1,
                 createdAt = ago(180),
             ),
             ForumPost(
                 id = "demo-post-3",
-                title = "Anyone else joining the October intake at VIT?",
-                body = "Would love to make a small group before orientation. I'm from Jaipur, moving for the first time and slightly nervous about hostel life.",
+                title = "DSW cultural inductions & club registrations at Block 13",
+                body = "Does anyone know the audition timings for the Division of Arts and Culture (DSW) events at Mittal Auditorium this week?",
                 authorUid = "demo-sana",
                 authorName = "Sana Kapoor",
-                authorEmoji = "👩🏻",
-                communityId = "vit",
-                communityName = "VIT Vellore",
+                authorEmoji = "",
+                communityId = "events",
+                communityName = "Events",
+                university = uni,
                 upvoteCount = 17,
-                commentCount = 6,
+                commentCount = 0,
                 createdAt = ago(60 * 9),
             ),
             ForumPost(
                 id = "demo-post-4",
-                title = "Budget grocery list for a week (under ₹1,200)",
-                body = "Sharing the list I use every week: dal, rice, eggs, seasonal veggies, curd, oats and bananas. It covers breakfast, lunch and dinner without eating out.",
+                title = "Best quick study spots & affordable lunch near academic blocks",
+                body = "Sharing what worked for me at $uni: Unimall quiet tables before 11 AM and meal combos near Block 34.",
                 authorUid = "demo-meera",
                 authorName = "Meera Nair",
-                authorEmoji = "👩🏾",
-                communityId = "mumbai",
-                communityName = "Mumbai Students",
+                authorEmoji = "",
+                communityId = "campus_life",
+                communityName = "Campus Life",
+                university = uni,
                 upvoteCount = 67,
-                commentCount = 19,
+                commentCount = 1,
                 createdAt = ago(60 * 26),
             ),
         )
@@ -126,20 +131,27 @@ object ForumDemo {
         return when (postId) {
             "demo-post-1" -> listOf(
                 ForumComment(
-                    "demo-comment-1", postId, "demo-rohan", "Rohan Mehta", "🧔🏽",
-                    "The overnight bus is still the cheapest. Book on the state transport site a day early.",
+                    "demo-comment-1", postId, "demo-rohan", "Rohan Mehta", "",
+                    "Sardar Apartments and Green Valley are both solid — check individual meter rates before locking in.",
                     ago(30),
                 ),
                 ForumComment(
-                    "demo-comment-2", postId, "demo-sana", "Sana Kapoor", "👩🏻",
-                    "Three of us are landing around the same time. We're splitting a cab — DM me!",
+                    "demo-comment-2", postId, "demo-sana", "Sana Kapoor", "",
+                    "Divjot PG at Simar Enclave also includes inverter backup and RO water. Worth visiting in person.",
                     ago(12),
+                ),
+            )
+            "demo-post-2" -> listOf(
+                ForumComment(
+                    "demo-comment-3", postId, "demo-meera", "Meera Nair", "",
+                    "Focus on arrays, trees, SQL joins, and one clean full-stack or Android project you can explain end-to-end.",
+                    ago(60 * 2),
                 ),
             )
             "demo-post-4" -> listOf(
                 ForumComment(
-                    "demo-comment-3", postId, "demo-aisha", "Aisha Verma", "👩🏽",
-                    "Adding peanut butter and frozen peas changed my weekly budget completely.",
+                    "demo-comment-4", postId, "demo-aisha", "Aisha Verma", "",
+                    "Seconding Unimall morning hours — power sockets on the upper deck are super reliable.",
                     ago(60 * 20),
                 ),
             )

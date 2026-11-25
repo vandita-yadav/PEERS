@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
@@ -30,6 +29,7 @@ import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -42,6 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -63,13 +64,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.peers.R
+import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import com.example.peers.ui.theme.PeersBrandInk
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -81,6 +85,11 @@ import java.util.concurrent.TimeUnit
 fun ForumScreen(
     modifier: Modifier = Modifier,
     viewModel: ForumViewModel = viewModel(),
+    user: DashboardUser? = null,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
 ) {
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val allPosts by viewModel.allPosts.collectAsStateWithLifecycle()
@@ -88,10 +97,21 @@ fun ForumScreen(
     val selectedCommunity by viewModel.communityId.collectAsStateWithLifecycle()
     val selectedPostId by viewModel.selectedPostId.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
+    val activeCollege by viewModel.university.collectAsStateWithLifecycle()
 
+    LaunchedEffect(user?.university) {
+        val uni = user?.university.orEmpty()
+        if (uni.isNotBlank()) viewModel.setUniversity(uni)
+    }
+
+    val currentUid = viewModel.currentUid
     val snackbarHostState = remember { SnackbarHostState() }
     var showComposer by remember { mutableStateOf(false) }
     var reportTarget by remember { mutableStateOf<ReportTarget?>(null) }
+    var editingPost by remember { mutableStateOf<ForumPost?>(null) }
+    var deletingPost by remember { mutableStateOf<ForumPost?>(null) }
+    var editingComment by remember { mutableStateOf<ForumComment?>(null) }
+    var deletingComment by remember { mutableStateOf<ForumComment?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvents.collect { event ->
@@ -102,6 +122,8 @@ fun ForumScreen(
     }
 
     val selectedPost = selectedPostId?.let { id -> allPosts.firstOrNull { it.id == id } }
+    fun isMyItem(authorUid: String, id: String): Boolean =
+        (currentUid.isNotBlank() && authorUid == currentUid) || id.startsWith("post-") || id.startsWith("local-")
 
     Box(modifier = modifier.fillMaxSize()) {
         if (selectedPost != null) {
@@ -109,24 +131,39 @@ fun ForumScreen(
             PostDetail(
                 post = selectedPost,
                 comments = comments,
+                isMyPost = isMyItem(selectedPost.authorUid, selectedPost.id),
+                isMyComment = { c -> isMyItem(c.authorUid, c.id) },
                 onBack = viewModel::closePost,
                 onUpvote = { viewModel.toggleUpvote(selectedPost.id) },
                 onAddComment = { body -> viewModel.addComment(selectedPost, body) },
+                onEditPost = { editingPost = selectedPost },
+                onDeletePost = { deletingPost = selectedPost },
+                onEditComment = { c -> editingComment = c },
+                onDeleteComment = { c -> deletingComment = c },
                 onReportPost = { reportTarget = ReportTarget(post = selectedPost) },
                 onReportComment = { comment -> reportTarget = ReportTarget(comment = comment) },
             )
         } else {
             ForumFeed(
                 posts = posts,
+                collegeName = activeCollege.ifBlank { user?.university.orEmpty() }.ifBlank { "Your Campus" },
                 query = query,
                 selectedCommunity = selectedCommunity,
                 communities = viewModel.communities,
+                user = user,
+                unreadCount = unreadCount,
+                isMyPost = { p -> isMyItem(p.authorUid, p.id) },
                 onQueryChange = viewModel::setQuery,
                 onCommunitySelected = viewModel::selectCommunity,
                 onOpenPost = { viewModel.openPost(it.id) },
                 onUpvote = viewModel::toggleUpvote,
+                onEditPost = { editingPost = it },
+                onDeletePost = { deletingPost = it },
                 onReport = { post -> reportTarget = ReportTarget(post = post) },
                 onCompose = { showComposer = true },
+                onProfileClick = onProfileClick,
+                onBellClick = onBellClick,
+                onBack = onBack,
             )
         }
         SnackbarHost(
@@ -150,6 +187,114 @@ fun ForumScreen(
                 },
             )
         }
+    }
+
+    editingPost?.let { post ->
+        var titleDraft by remember(post.id) { mutableStateOf(post.title) }
+        var bodyDraft by remember(post.id) { mutableStateOf(post.body) }
+        AlertDialog(
+            onDismissRequest = { editingPost = null },
+            title = { Text("Edit Discussion", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = titleDraft,
+                        onValueChange = { titleDraft = it },
+                        label = { Text("Title") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                    OutlinedTextField(
+                        value = bodyDraft,
+                        onValueChange = { bodyDraft = it },
+                        label = { Text("Details") },
+                        minLines = 3,
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.editPost(post, titleDraft, bodyDraft)
+                        editingPost = null
+                    },
+                    enabled = titleDraft.isNotBlank() && bodyDraft.isNotBlank(),
+                ) { Text("Save", color = PeersPrimaryIndigo, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingPost = null }) { Text("Cancel") }
+            },
+        )
+    }
+
+    deletingPost?.let { post ->
+        AlertDialog(
+            onDismissRequest = { deletingPost = null },
+            title = { Text("Delete discussion?", fontWeight = FontWeight.Bold) },
+            text = { Text("This will remove \"${post.title}\" from your campus forum.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deletePost(post)
+                    deletingPost = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingPost = null }) { Text("Cancel") }
+            },
+        )
+    }
+
+    editingComment?.let { comment ->
+        val parentPost = selectedPost
+        var replyDraft by remember(comment.id) { mutableStateOf(comment.body) }
+        AlertDialog(
+            onDismissRequest = { editingComment = null },
+            title = { Text("Edit Reply", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = replyDraft,
+                    onValueChange = { replyDraft = it },
+                    label = { Text("Your reply") },
+                    minLines = 3,
+                    shape = RoundedCornerShape(14.dp),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (parentPost != null) {
+                            viewModel.editComment(parentPost, comment, replyDraft)
+                        }
+                        editingComment = null
+                    },
+                    enabled = replyDraft.isNotBlank(),
+                ) { Text("Save", color = PeersPrimaryIndigo, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingComment = null }) { Text("Cancel") }
+            },
+        )
+    }
+
+    deletingComment?.let { comment ->
+        val parentPost = selectedPost
+        AlertDialog(
+            onDismissRequest = { deletingComment = null },
+            title = { Text("Delete reply?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to remove this reply?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (parentPost != null) {
+                        viewModel.deleteComment(parentPost, comment)
+                    }
+                    deletingComment = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingComment = null }) { Text("Cancel") }
+            },
+        )
     }
 
     reportTarget?.let { target ->
@@ -180,39 +325,46 @@ private data class ReportTarget(
 @Composable
 private fun ForumFeed(
     posts: List<ForumPost>,
+    collegeName: String,
     query: String,
     selectedCommunity: String?,
     communities: List<ForumCommunity>,
+    user: DashboardUser?,
+    unreadCount: Int,
+    isMyPost: (ForumPost) -> Boolean,
     onQueryChange: (String) -> Unit,
     onCommunitySelected: (String?) -> Unit,
     onOpenPost: (ForumPost) -> Unit,
     onUpvote: (String) -> Unit,
+    onEditPost: (ForumPost) -> Unit,
+    onDeletePost: (ForumPost) -> Unit,
     onReport: (ForumPost) -> Unit,
     onCompose: () -> Unit,
+    onProfileClick: () -> Unit,
+    onBellClick: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     LazyColumn(
         contentPadding = PaddingValues(bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                Text(
-                    "Community",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "Ask, share and find your people",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            PeersSubScreenHeader(
+                title = "Discussion",
+                subtitle = "$collegeName · Join other peers",
+                user = user,
+                unreadCount = unreadCount,
+                onBack = onBack ?: {},
+                onProfileClick = onProfileClick,
+                onBellClick = onBellClick,
+            )
         }
 
         item {
             ForumHero(
+                collegeName = collegeName,
                 postCount = posts.size,
-                communityCount = communities.size,
+                categoryCount = communities.size,
                 onCompose = onCompose,
             )
         }
@@ -221,7 +373,7 @@ private fun ForumFeed(
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                placeholder = { Text("Search discussions") },
+                placeholder = { Text("Search $collegeName discussions") },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(18.dp),
@@ -240,7 +392,7 @@ private fun ForumFeed(
                     FilterChip(
                         selected = selectedCommunity == null,
                         onClick = { onCommunitySelected(null) },
-                        label = { Text("All spaces") },
+                        label = { Text("All topics") },
                         colors = forumChipColors(),
                     )
                 }
@@ -248,7 +400,7 @@ private fun ForumFeed(
                     FilterChip(
                         selected = selectedCommunity == community.id,
                         onClick = { onCommunitySelected(community.id) },
-                        label = { Text("${community.emoji} ${community.name}") },
+                        label = { Text(community.name) },
                         colors = forumChipColors(),
                     )
                 }
@@ -263,7 +415,7 @@ private fun ForumFeed(
                     .padding(horizontal = 20.dp, vertical = 2.dp),
             ) {
                 Text(
-                    if (selectedCommunity == null) "Latest discussions" else "In this space",
+                    if (selectedCommunity == null) "Latest discussions" else "In this category",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
@@ -287,7 +439,12 @@ private fun ForumFeed(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(26.dp),
                     ) {
-                        Text("🗣️", fontSize = 40.sp)
+                        PeersDrawableIcon(
+                            lightRes = R.drawable.community_black,
+                            darkRes = R.drawable.community_white,
+                            contentDescription = "No discussions",
+                            size = 40.dp,
+                        )
                         Text(
                             "No discussions here yet",
                             style = MaterialTheme.typography.titleMedium,
@@ -309,8 +466,11 @@ private fun ForumFeed(
             items(posts, key = { it.id }) { post ->
                 PostCard(
                     post = post,
+                    isMine = isMyPost(post),
                     onOpen = { onOpenPost(post) },
                     onUpvote = { onUpvote(post.id) },
+                    onEdit = { onEditPost(post) },
+                    onDelete = { onDeletePost(post) },
                     onReport = { onReport(post) },
                     modifier = Modifier.padding(horizontal = 20.dp),
                 )
@@ -326,7 +486,7 @@ private fun forumChipColors() = FilterChipDefaults.filterChipColors(
 )
 
 @Composable
-private fun ForumHero(postCount: Int, communityCount: Int, onCompose: () -> Unit) {
+private fun ForumHero(collegeName: String, postCount: Int, categoryCount: Int, onCompose: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -340,21 +500,34 @@ private fun ForumHero(postCount: Int, communityCount: Int, onCompose: () -> Unit
             .padding(20.dp),
     ) {
         Column {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Color.White.copy(alpha = 0.2f),
+            ) {
+                Text(
+                    "$collegeName · College-Only Forum",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
             Text(
                 "Your campus, in conversation",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
+                modifier = Modifier.padding(top = 8.dp),
             )
             Text(
-                "Honest answers from students who have already done it.",
+                "Discussions are scoped specifically to $collegeName peers.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.82f),
+                color = Color.White.copy(alpha = 0.85f),
                 modifier = Modifier.padding(top = 4.dp),
             )
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 16.dp)) {
                 HeroStat("$postCount", "threads", Modifier.weight(1f))
-                HeroStat("$communityCount", "spaces", Modifier.weight(1f))
+                HeroStat("$categoryCount", "categories", Modifier.weight(1f))
                 Button(
                     onClick = onCompose,
                     colors = ButtonDefaults.buttonColors(
@@ -391,8 +564,11 @@ private fun HeroStat(value: String, label: String, modifier: Modifier = Modifier
 @Composable
 private fun PostCard(
     post: ForumPost,
+    isMine: Boolean,
     onOpen: () -> Unit,
     onUpvote: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     onReport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -401,6 +577,7 @@ private fun PostCard(
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
+        shadowElevation = 2.dp,
         modifier = modifier.fillMaxWidth().clickable(onClick = onOpen),
     ) {
         Column(Modifier.padding(16.dp)) {
@@ -427,19 +604,36 @@ private fun PostCard(
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
                         Icon(
                             Icons.Rounded.MoreVert,
-                            contentDescription = "Report discussion",
+                            contentDescription = "Options",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Report discussion") },
-                            onClick = {
-                                menuOpen = false
-                                onReport()
-                            },
-                        )
+                        if (isMine) {
+                            DropdownMenuItem(
+                                text = { Text("Edit discussion") },
+                                onClick = {
+                                    menuOpen = false
+                                    onEdit()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete discussion", color = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    menuOpen = false
+                                    onDelete()
+                                },
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text("Report discussion") },
+                                onClick = {
+                                    menuOpen = false
+                                    onReport()
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -467,7 +661,12 @@ private fun PostCard(
                         .clip(CircleShape)
                         .background(PeersSky.copy(alpha = 0.6f)),
                 ) {
-                    Text(post.authorEmoji, fontSize = 15.sp)
+                    Text(
+                        post.authorName.firstOrNull()?.uppercase() ?: "P",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PeersBrandInk,
+                    )
                 }
                 Text(
                     post.authorName,
@@ -546,7 +745,7 @@ private fun NewPostSheet(
             fontWeight = FontWeight.Bold,
         )
         Text(
-            "Real questions get real answers. Keep it kind and specific.",
+            "Real questions get real answers. Choose a topic category for your campus.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
@@ -555,7 +754,7 @@ private fun NewPostSheet(
             value = title,
             onValueChange = { title = it },
             label = { Text("Question or title") },
-            placeholder = { Text("How do I open a bank account as a student?") },
+            placeholder = { Text("How do I open a student bank account nearby?") },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -570,7 +769,7 @@ private fun NewPostSheet(
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
         )
         Text(
-            "Post in",
+            "Category",
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
@@ -580,7 +779,7 @@ private fun NewPostSheet(
                 FilterChip(
                     selected = community.id == option.id,
                     onClick = { community = option },
-                    label = { Text("${option.emoji} ${option.name}") },
+                    label = { Text(option.name) },
                     colors = forumChipColors(),
                 )
             }
@@ -602,13 +801,20 @@ private fun NewPostSheet(
 private fun PostDetail(
     post: ForumPost,
     comments: List<ForumComment>,
+    isMyPost: Boolean,
+    isMyComment: (ForumComment) -> Boolean,
     onBack: () -> Unit,
     onUpvote: () -> Unit,
     onAddComment: (String) -> Unit,
+    onEditPost: () -> Unit,
+    onDeletePost: () -> Unit,
+    onEditComment: (ForumComment) -> Unit,
+    onDeleteComment: (ForumComment) -> Unit,
     onReportPost: () -> Unit,
     onReportComment: (ForumComment) -> Unit,
 ) {
     var reply by remember { mutableStateOf("") }
+    var topMenuOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -620,8 +826,27 @@ private fun PostDetail(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onReportPost) {
-                        Icon(Icons.Rounded.MoreVert, contentDescription = "Report discussion")
+                    Box {
+                        IconButton(onClick = { topMenuOpen = true }) {
+                            Icon(Icons.Rounded.MoreVert, contentDescription = "Post actions")
+                        }
+                        DropdownMenu(expanded = topMenuOpen, onDismissRequest = { topMenuOpen = false }) {
+                            if (isMyPost) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit discussion") },
+                                    onClick = { topMenuOpen = false; onEditPost() },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete discussion", color = MaterialTheme.colorScheme.error) },
+                                    onClick = { topMenuOpen = false; onDeletePost() },
+                                )
+                            } else {
+                                DropdownMenuItem(
+                                    text = { Text("Report discussion") },
+                                    onClick = { topMenuOpen = false; onReportPost() },
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -660,7 +885,14 @@ private fun PostDetail(
                                 .size(36.dp)
                                 .clip(CircleShape)
                                 .background(PeersSky.copy(alpha = 0.6f)),
-                        ) { Text(post.authorEmoji, fontSize = 17.sp) }
+                        ) {
+                            Text(
+                                post.authorName.firstOrNull()?.uppercase() ?: "P",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PeersBrandInk,
+                            )
+                        }
                         Column(Modifier.padding(start = 10.dp)) {
                             Text(
                                 post.authorName,
@@ -717,6 +949,9 @@ private fun PostDetail(
                     items(comments, key = { it.id }) { comment ->
                         CommentCard(
                             comment = comment,
+                            isMine = isMyComment(comment),
+                            onEdit = { onEditComment(comment) },
+                            onDelete = { onDeleteComment(comment) },
                             onReport = { onReportComment(comment) },
                         )
                     }
@@ -739,7 +974,13 @@ private fun PostDetail(
 }
 
 @Composable
-private fun CommentCard(comment: ForumComment, onReport: () -> Unit) {
+private fun CommentCard(
+    comment: ForumComment,
+    isMine: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onReport: () -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -754,7 +995,14 @@ private fun CommentCard(comment: ForumComment, onReport: () -> Unit) {
                         .size(28.dp)
                         .clip(CircleShape)
                         .background(PeersMint),
-                ) { Text(comment.authorEmoji, fontSize = 14.sp) }
+                ) {
+                    Text(
+                        comment.authorName.firstOrNull()?.uppercase() ?: "P",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PeersBrandInk,
+                    )
+                }
                 Text(
                     comment.authorName,
                     style = MaterialTheme.typography.labelMedium,
@@ -770,19 +1018,36 @@ private fun CommentCard(comment: ForumComment, onReport: () -> Unit) {
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(26.dp)) {
                         Icon(
                             Icons.Rounded.MoreVert,
-                            contentDescription = "Report reply",
+                            contentDescription = "Reply options",
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Report reply") },
-                            onClick = {
-                                menuOpen = false
-                                onReport()
-                            },
-                        )
+                        if (isMine) {
+                            DropdownMenuItem(
+                                text = { Text("Edit reply") },
+                                onClick = {
+                                    menuOpen = false
+                                    onEdit()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete reply", color = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    menuOpen = false
+                                    onDelete()
+                                },
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text("Report reply") },
+                                onClick = {
+                                    menuOpen = false
+                                    onReport()
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -833,7 +1098,7 @@ private fun ReplyBar(value: String, onValueChange: (String) -> Unit, onSend: () 
 @Composable
 private fun ReportDialog(label: String, onDismiss: () -> Unit, onReport: (ReportReason) -> Unit) {
     var selected by remember { mutableStateOf<ReportReason?>(null) }
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Report this $label?") },
         text = {
@@ -851,7 +1116,7 @@ private fun ReportDialog(label: String, onDismiss: () -> Unit, onReport: (Report
                             .clickable { selected = reason }
                             .padding(vertical = 10.dp),
                     ) {
-                        androidx.compose.material3.RadioButton(
+                        RadioButton(
                             selected = selected == reason,
                             onClick = { selected = reason },
                         )

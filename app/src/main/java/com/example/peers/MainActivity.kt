@@ -1,10 +1,13 @@
 package com.example.peers
 
+import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -33,10 +36,34 @@ import com.example.peers.ui.theme.ThemePreferences
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(AndroidColor.argb(0xF5, 0xF3, 0xF4, 0xF6), AndroidColor.argb(0xFF, 0x1C, 0x1D, 0x24)),
+        )
         setContent {
             var themeMode by remember {
                 mutableStateOf(ThemePreferences.load(applicationContext))
+            }
+            val isDark = when (themeMode) {
+                PeersThemeMode.NeonDark -> true
+                PeersThemeMode.AestheticLight -> false
+                PeersThemeMode.SystemDefault -> isSystemInDarkTheme()
+            }
+            LaunchedEffect(isDark) {
+                if (isDark) {
+                    enableEdgeToEdge(
+                        statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+                        navigationBarStyle = SystemBarStyle.dark(AndroidColor.argb(0xFF, 0x1C, 0x1D, 0x24)),
+                    )
+                } else {
+                    enableEdgeToEdge(
+                        statusBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+                        navigationBarStyle = SystemBarStyle.light(
+                            AndroidColor.argb(0xFF, 0xF3, 0xF4, 0xF6),
+                            AndroidColor.argb(0xFF, 0xE5, 0xE7, 0xEB)
+                        ),
+                    )
+                }
             }
             val onSetTheme: (PeersThemeMode) -> Unit = { newMode ->
                 themeMode = newMode
@@ -85,9 +112,9 @@ private fun PeersAuthApp(
         when (val state = authState) {
             is AuthState.SignedIn -> {
                 if (state.isNewUser) {
-                    navController.navigate("profile") { popUpTo("welcome") { inclusive = true } }
+                    navController.navigate("profile") { popUpTo(0) { inclusive = true } }
                 } else {
-                    navController.navigate("dashboard") { popUpTo("welcome") { inclusive = true } }
+                    navController.navigate("dashboard") { popUpTo(0) { inclusive = true } }
                 }
             }
             else -> Unit
@@ -133,6 +160,7 @@ private fun PeersAuthApp(
             OnboardingScreens.ManualSignUp(
                 isSigningIn = authState == AuthState.SigningIn,
                 accountExistsError = accountExistsError,
+                signInError = signInError,
                 onSignUp = { name, email, password ->
                     authViewModel.signUpManually(name, email, password)
                 },
@@ -153,6 +181,7 @@ private fun PeersAuthApp(
         composable("manual_login") {
             OnboardingScreens.ManualLogIn(
                 isSigningIn = authState == AuthState.SigningIn,
+                signInError = signInError,
                 onLogIn = { email, password ->
                     authViewModel.logInManually(email, password)
                 },
@@ -181,14 +210,25 @@ private fun PeersAuthApp(
         }
 
         composable("dashboard") {
+            val activity = navController.context as ComponentActivity
             DashboardScreen(
                 themeMode = themeMode,
                 onToggleTheme = onToggleTheme,
                 onSetTheme = onSetTheme,
                 onSignOut = {
-                    authViewModel.signOut(navController.context as ComponentActivity)
+                    authViewModel.signOut(activity)
                     navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
-                }
+                },
+                onDeleteAccount = { onError ->
+                    authViewModel.deleteAccount(
+                        activity = activity,
+                        onDeleted = {
+                            Toast.makeText(activity, "Your PEERS account has been deleted.", Toast.LENGTH_LONG).show()
+                            navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
+                        },
+                        onError = onError,
+                    )
+                },
             )
         }
     }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,6 +34,9 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.WarningAmber
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -79,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -90,6 +95,9 @@ import kotlinx.coroutines.launch
 fun ChecklistScreen(
     user: DashboardUser?,
     onBack: () -> Unit,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ChecklistViewModel = viewModel(),
 ) {
@@ -122,41 +130,27 @@ fun ChecklistScreen(
     val percent = if (total > 0) (completed * 100 / total) else 0
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 6.dp),
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-                Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text(
-                        "Student Checklist",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        "Personalized for ${user?.university ?: "Campus"}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = { showRegenerateDialog = true }) {
-                    Icon(
-                        Icons.Rounded.Refresh,
-                        contentDescription = "Regenerate",
-                        tint = PeersPrimaryIndigo,
-                    )
-                }
-            }
+            PeersSubScreenHeader(
+                title = "Student Checklist",
+                subtitle = "Personalized for ${user?.university?.ifBlank { "Campus" } ?: "Campus"}",
+                user = user,
+                unreadCount = unreadCount,
+                onBack = onBack,
+                onProfileClick = onProfileClick,
+                onBellClick = onBellClick,
+                trailingAction = {
+                    IconButton(onClick = { showRegenerateDialog = true }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = "Regenerate",
+                            tint = PeersPrimaryIndigo,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                },
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -237,17 +231,28 @@ fun ChecklistScreen(
                                     color = Color(0xFFFDE8E8),
                                     modifier = Modifier.padding(top = 6.dp),
                                 ) {
-                                    Text(
-                                        "⚠️ $urgentRemaining urgent remaining",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFFC53030),
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.WarningAmber,
+                                            contentDescription = null,
+                                            tint = Color(0xFFC53030),
+                                            modifier = Modifier.size(14.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "$urgentRemaining urgent remaining",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFFC53030),
+                                        )
+                                    }
                                 }
                             } else {
                                 Text(
-                                    if (percent == 100) "🎉 All tasks finished! You're ready."
+                                    if (percent == 100) "All tasks finished! You're ready."
                                     else "Steady progress! Keep ticking off items.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -273,7 +278,7 @@ fun ChecklistScreen(
                             onClick = { viewModel.setCategory(cat) },
                             label = {
                                 Text(
-                                    "${cat.emoji} ${cat.label}",
+                                    cat.label,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 )
                             },
@@ -313,7 +318,12 @@ fun ChecklistScreen(
                             .fillMaxWidth()
                             .padding(vertical = 40.dp, horizontal = 20.dp),
                     ) {
-                        Text("✨", fontSize = 36.sp)
+                        PeersDrawableIcon(
+                            lightRes = R.drawable.checklist_black,
+                            darkRes = R.drawable.checklist_white,
+                            contentDescription = "No tasks",
+                            size = 36.dp,
+                        )
                         Text(
                             "No tasks in this category",
                             style = MaterialTheme.typography.titleMedium,
@@ -425,7 +435,7 @@ private fun ChecklistTaskRow(
                         color = item.category.color.copy(alpha = 0.25f),
                     ) {
                         Text(
-                            "${item.category.emoji} ${item.category.label}",
+                            item.category.label,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -559,7 +569,7 @@ private fun AddChecklistTaskSheet(
                         modifier = Modifier.clickable { selectedCat = cat },
                     ) {
                         Text(
-                            "${cat.emoji} ${cat.label}",
+                            cat.label,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Normal,
                             color = if (isChosen) Color.White else MaterialTheme.colorScheme.onSurface,

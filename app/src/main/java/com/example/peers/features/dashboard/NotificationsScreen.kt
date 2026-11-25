@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -46,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersSky
@@ -67,8 +71,10 @@ private val notifDateFormatter = DateTimeFormatter.ofPattern("EEEE, d MMM", Loca
 fun NotificationsScreen(
     viewModel: DashboardViewModel,
     onBack: () -> Unit,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val user by viewModel.user.collectAsStateWithLifecycle()
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
 
@@ -80,34 +86,24 @@ fun NotificationsScreen(
     val groups = notifications.groupBy { dayLabel(it.timestampMillis) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Notifications",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
+            PeersSubScreenHeader(
+                title = "Notifications",
+                subtitle = if (unreadCount > 0) "$unreadCount unread alerts" else "All caught up",
+                user = user,
+                unreadCount = unreadCount,
+                onBack = onBack,
+                onProfileClick = onProfileClick,
+                onBellClick = {},
+                trailingAction = {
                     if (unreadCount > 0) {
-                        Text(
-                            "$unreadCount unread",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = PeersPrimaryIndigo,
-                        )
+                        TextButton(onClick = { viewModel.markAllRead() }) {
+                            Text("Read all", color = PeersPrimaryIndigo, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
                     }
-                }
-                TextButton(
-                    enabled = unreadCount > 0,
-                    onClick = { viewModel.markAllRead() },
-                ) { Text("Mark all read") }
-            }
+                },
+            )
         },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
@@ -118,7 +114,12 @@ fun NotificationsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxSize().padding(padding).padding(32.dp),
             ) {
-                Text("🔕", fontSize = 44.sp)
+                PeersDrawableIcon(
+                    lightRes = R.drawable.notification_black,
+                    darkRes = R.drawable.notification_white,
+                    contentDescription = null,
+                    size = 44.dp,
+                )
                 Text(
                     "You're all caught up!",
                     style = MaterialTheme.typography.titleMedium,
@@ -201,7 +202,18 @@ private fun NotificationRow(
                             .clip(RoundedCornerShape(14.dp))
                             .background(iconBg),
                     ) {
-                        Text(notification.emoji, fontSize = 20.sp)
+                        val (lightRes, darkRes) = when (notification.type) {
+                            NotificationType.CONNECTION_REQUEST -> R.drawable.request_black to R.drawable.request_white
+                            NotificationType.CONNECTION_ACCEPTED -> R.drawable.handshake_black to R.drawable.handshake_white
+                            NotificationType.REQUEST_SENT -> R.drawable.invite_black to R.drawable.invite_white
+                            NotificationType.INFO -> R.drawable.info_black to R.drawable.info_white
+                        }
+                        PeersDrawableIcon(
+                            lightRes = lightRes,
+                            darkRes = darkRes,
+                            contentDescription = notification.title,
+                            size = 22.dp,
+                        )
                     }
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -248,7 +260,7 @@ private fun NotificationRow(
                     }
                 } else if (resolved) {
                     Text(
-                        "✓ Handled",
+                        "Handled",
                         style = MaterialTheme.typography.labelSmall,
                         color = PeersPrimaryIndigo,
                         modifier = Modifier.padding(start = 56.dp, top = 4.dp),

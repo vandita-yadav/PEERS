@@ -177,7 +177,12 @@ private fun SeekerCard(seeker: RoommateSeeker, onSend: () -> Unit) {
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(46.dp).clip(CircleShape).background(seeker.accent),
                 ) {
-                    Text(seeker.emoji, fontSize = 22.sp)
+                    Text(
+                        seeker.name.firstOrNull()?.uppercase() ?: "P",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1D1B30),
+                    )
                 }
                 Column(Modifier.padding(start = 12.dp).weight(1f)) {
                     Text(
@@ -202,7 +207,7 @@ private fun SeekerCard(seeker: RoommateSeeker, onSend: () -> Unit) {
             }
 
             Text(
-                "📍 ${seeker.area}",
+                "Area: ${seeker.area}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 10.dp),

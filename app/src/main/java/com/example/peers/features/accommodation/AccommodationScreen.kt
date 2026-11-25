@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,8 +20,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -74,6 +77,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.peers.R
+import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
+import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.peers.ui.theme.PeersMint
@@ -84,6 +91,10 @@ import kotlin.math.roundToInt
 @Composable
 fun AccommodationScreen(
     onBack: () -> Unit,
+    user: DashboardUser? = null,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AccommodationViewModel = viewModel(),
 ) {
@@ -116,58 +127,42 @@ fun AccommodationScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            "Nearby Accommodation",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            "${visible.size} stays around your campus",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showRoommates = true }) {
-                        BadgedBox(
-                            badge = {
-                                val pending = roommateRequests.count {
-                                    it.incoming && it.status == RoommateRequestStatus.PENDING
+            PeersSubScreenHeader(
+                title = "Accommodation",
+                subtitle = "${visible.size} stays near campus",
+                user = user,
+                unreadCount = unreadCount,
+                onBack = onBack,
+                onProfileClick = onProfileClick,
+                onBellClick = onBellClick,
+                trailingAction = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { showRoommates = true }, modifier = Modifier.size(36.dp)) {
+                            BadgedBox(
+                                badge = {
+                                    val pending = roommateRequests.count {
+                                        it.incoming && it.status == RoommateRequestStatus.PENDING
+                                    }
+                                    if (pending > 0) Badge { Text("$pending") }
                                 }
-                                if (pending > 0) {
-                                    Badge { Text("$pending") }
-                                }
+                            ) {
+                                Icon(Icons.Rounded.People, contentDescription = "Roommate matching", modifier = Modifier.size(20.dp))
                             }
-                        ) {
-                            Icon(Icons.Rounded.People, contentDescription = "Roommate matching")
                         }
-                    }
-                    IconButton(onClick = { showFilters = true }) {
-                        BadgedBox(
-                            badge = {
-                                if (filters.activeCount > 0) {
-                                    Badge { Text("${filters.activeCount}") }
+                        IconButton(onClick = { showFilters = true }, modifier = Modifier.size(36.dp)) {
+                            BadgedBox(
+                                badge = {
+                                    if (filters.activeCount > 0) Badge { Text("${filters.activeCount}") }
                                 }
+                            ) {
+                                Icon(Icons.Rounded.Tune, contentDescription = "Filters", modifier = Modifier.size(20.dp))
                             }
-                        ) {
-                            Icon(Icons.Rounded.Tune, contentDescription = "Filters")
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
             )
         },
         floatingActionButton = {
@@ -307,6 +302,8 @@ fun AccommodationScreen(
                 onMarkGenuine = { viewModel.markGenuine(listing) },
                 onRemoveGenuine = { viewModel.unmarkGenuine(listing) },
                 onAddReview = { rating, text -> viewModel.addReview(listing, rating, text) },
+                onEditReview = { review, rating, text -> viewModel.editReview(listing, review, rating, text) },
+                onDeleteReview = { review -> viewModel.deleteReview(listing, review) },
                 onReportReview = { reviewId -> viewModel.reportReview(listing.id, reviewId) },
                 onRoommateRequest = { contact, text ->
                     viewModel.sendRoommateRequest(listing, contact, text)
@@ -382,11 +379,14 @@ private fun AccommodationCard(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Text(
-                    listing.emoji,
-                    fontSize = 56.sp,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+                Box(modifier = Modifier.align(Alignment.Center)) {
+                    PeersDrawableIcon(
+                        lightRes = R.drawable.accomodation_black,
+                        darkRes = R.drawable.accomodation_white,
+                        contentDescription = listing.title,
+                        size = 52.dp,
+                    )
+                }
             }
             if (listing.isVerified) {
                 Surface(
@@ -395,7 +395,7 @@ private fun AccommodationCard(
                     modifier = Modifier.padding(12.dp),
                 ) {
                     Text(
-                        "✓ Verified by ${listing.verifiedCount} students",
+                        "Verified by ${listing.verifiedCount} students",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF1F6B3B),
@@ -531,7 +531,12 @@ private fun EmptyListings(onReset: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxSize().padding(32.dp),
     ) {
-        Text("🏠", fontSize = 44.sp)
+        PeersDrawableIcon(
+            lightRes = R.drawable.accomodation_black,
+            darkRes = R.drawable.accomodation_white,
+            contentDescription = "No listings",
+            size = 44.dp,
+        )
         Text(
             "No stays match those filters yet.",
             style = MaterialTheme.typography.bodyLarge,
@@ -562,7 +567,7 @@ private fun FilterSheet(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 22.dp)
-            .padding(bottom = 28.dp),
+            .padding(bottom = 24.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -579,102 +584,110 @@ private fun FilterSheet(
             }) { Text("Reset", color = PeersPrimaryIndigo) }
         }
 
-        FilterLabel("Maximum rent")
-        Text(
-            "₹${maxRent.roundToInt()} / month",
-            style = MaterialTheme.typography.bodyMedium,
-            color = PeersPrimaryIndigo,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Slider(
-            value = maxRent,
-            onValueChange = { maxRent = it },
-            valueRange = 2000f..30000f,
-            steps = 27,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            FilterLabel("Maximum rent")
+            Text(
+                "₹${maxRent.roundToInt()} / month",
+                style = MaterialTheme.typography.bodyMedium,
+                color = PeersPrimaryIndigo,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Slider(
+                value = maxRent,
+                onValueChange = { maxRent = it },
+                valueRange = 2000f..30000f,
+                steps = 27,
+            )
 
-        FilterLabel("Distance from campus")
-        Text(
-            "Within ${"%.1f".format(maxDistance)} km",
-            style = MaterialTheme.typography.bodyMedium,
-            color = PeersPrimaryIndigo,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Slider(
-            value = maxDistance,
-            onValueChange = { maxDistance = it },
-            valueRange = 0.5f..10f,
-        )
+            FilterLabel("Distance from campus")
+            Text(
+                "Within ${"%.1f".format(maxDistance)} km",
+                style = MaterialTheme.typography.bodyMedium,
+                color = PeersPrimaryIndigo,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Slider(
+                value = maxDistance,
+                onValueChange = { maxDistance = it },
+                valueRange = 0.5f..10f,
+            )
 
-        FilterLabel("Property type")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(accommodationTypes) { type ->
-                FilterChip(
-                    selected = type in draft.types,
-                    onClick = {
-                        draft = draft.copy(
-                            types = if (type in draft.types) draft.types - type else draft.types + type
-                        )
-                    },
-                    label = { Text(type) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Property type")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(accommodationTypes) { type ->
+                    FilterChip(
+                        selected = type in draft.types,
+                        onClick = {
+                            draft = draft.copy(
+                                types = if (type in draft.types) draft.types - type else draft.types + type
+                            )
+                        },
+                        label = { Text(type) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Gender preference")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(genderOptions) { gender ->
-                FilterChip(
-                    selected = draft.gender == gender,
-                    onClick = { draft = draft.copy(gender = if (draft.gender == gender) null else gender) },
-                    label = { Text(gender) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Gender preference")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(genderOptions) { gender ->
+                    FilterChip(
+                        selected = draft.gender == gender,
+                        onClick = { draft = draft.copy(gender = if (draft.gender == gender) null else gender) },
+                        label = { Text(gender) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Furnishing")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(furnishingOptions) { option ->
-                FilterChip(
-                    selected = draft.furnishing == option,
-                    onClick = {
-                        draft = draft.copy(furnishing = if (draft.furnishing == option) null else option)
-                    },
-                    label = { Text(option) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Furnishing")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(furnishingOptions) { option ->
+                    FilterChip(
+                        selected = draft.furnishing == option,
+                        onClick = {
+                            draft = draft.copy(furnishing = if (draft.furnishing == option) null else option)
+                        },
+                        label = { Text(option) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Availability")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                FilterChip(
-                    selected = draft.availableNow,
-                    onClick = { draft = draft.copy(availableNow = !draft.availableNow) },
-                    label = { Text("Available now") },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Availability")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    FilterChip(
+                        selected = draft.availableNow,
+                        onClick = { draft = draft.copy(availableNow = !draft.availableNow) },
+                        label = { Text("Available now") },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Amenities")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(amenityOptions) { amenity ->
-                FilterChip(
-                    selected = amenity in draft.amenities,
-                    onClick = {
-                        draft = draft.copy(
-                            amenities = if (amenity in draft.amenities) draft.amenities - amenity
-                            else draft.amenities + amenity
-                        )
-                    },
-                    label = { Text(amenity) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Amenities")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(amenityOptions) { amenity ->
+                    FilterChip(
+                        selected = amenity in draft.amenities,
+                        onClick = {
+                            draft = draft.copy(
+                                amenities = if (amenity in draft.amenities) draft.amenities - amenity
+                                else draft.amenities + amenity
+                            )
+                        },
+                        label = { Text(amenity) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
+            Spacer(Modifier.height(16.dp))
         }
 
         Button(
@@ -690,10 +703,10 @@ private fun FilterSheet(
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 24.dp)
+                .padding(top = 12.dp)
                 .height(52.dp),
         ) {
-            Text("Show results", fontWeight = FontWeight.Bold)
+            Text("Save Filters", fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }

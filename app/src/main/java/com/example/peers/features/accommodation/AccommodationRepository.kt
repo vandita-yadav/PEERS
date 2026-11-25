@@ -88,6 +88,15 @@ class AccommodationRepository(
         ).await()
     }
 
+    suspend fun deleteReview(listingId: String, newRating: Double, newCount: Int) {
+        val user = auth.currentUser ?: error("Not signed in")
+        val listing = listingsRef().document(listingId)
+        listing.collection("reviews").document(user.uid).delete().await()
+        runCatching {
+            listing.update(mapOf("rating" to newRating, "reviewCount" to newCount)).await()
+        }
+    }
+
     /** Sends a roommate request to the listing contributor. */
     suspend fun sendRoommateRequest(request: RoommateRequest) {
         val user = auth.currentUser ?: error("Not signed in")
@@ -183,7 +192,7 @@ class AccommodationRepository(
             amenities = (get("amenities") as? List<*>)?.filterIsInstance<String>().orEmpty(),
             availability = getString("availability") ?: "Available now",
             photoUrls = (get("photoUrls") as? List<*>)?.filterIsInstance<String>().orEmpty(),
-            emoji = getString("emoji") ?: "🏠",
+            emoji = "",
             contributorName = getString("contributorName").orEmpty(),
             contributorUid = getString("contributorUid").orEmpty(),
             verifiedCount = (getLong("verifiedCount") ?: 0L).toInt(),

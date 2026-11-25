@@ -1,48 +1,54 @@
 package com.example.peers.features.dashboard
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.peers.features.community.ConnectionRepository
-import com.example.peers.features.community.ConnectionState
+import com.example.peers.features.events.CommunityEvent
+import com.example.peers.features.events.EventOrganizerType
+import com.example.peers.features.events.EventsRepository
+import com.example.peers.features.events.demoEvents
+import com.example.peers.features.notifications.PeersNotificationHelper
 import com.example.peers.features.offline.OfflineCacheRepository
 import com.example.peers.features.offline.SavedEventCacheEntity
+import com.example.peers.ui.theme.PeersLavender
+import com.example.peers.ui.theme.PeersMint
+import com.example.peers.ui.theme.PeersSky
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import org.json.JSONArray
 
 /**
- * Loads the signed-in user's profile from Firestore and exposes dashboard state,
- * live connection states and in-app notifications.
- *
- * Community content (events, suggestions) is mocked for Phase 2 and replaced by
- * real queries in the Community phase.
+ * Loads the signed-in user's profile from Firestore, exposes unified campus events
+ * matching the Events tab, and keeps in-app notifications synced offline-first.
  */
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
-    private val connections = ConnectionRepository()
+    private val eventsRepo = EventsRepository(auth, firestore)
     private val cache = OfflineCacheRepository.get(application)
+    private val eventsPrefs = application.getSharedPreferences("peers_events_local", Context.MODE_PRIVATE)
 
     private val _user = MutableStateFlow<DashboardUser?>(null)
     val user: StateFlow<DashboardUser?> = _user.asStateFlow()
+
+    private val _events = MutableStateFlow<List<DashboardEvent>>(emptyList())
+    val events: StateFlow<List<DashboardEvent>> = _events.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
-
-    /** peerId → connection state (live from Firestore). */
-    private val _connectionStates = MutableStateFlow<Map<String, ConnectionState>>(emptyMap())
-    val connectionStates: StateFlow<Map<String, ConnectionState>> = _connectionStates.asStateFlow()
 
     /** One-off UI messages (snackbars/toasts). */
     private val _actionMessage = MutableStateFlow<String?>(null)
@@ -59,42 +65,140 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _savedEventIds = MutableStateFlow<Set<String>>(emptySet())
     val savedEventIds: StateFlow<Set<String>> = _savedEventIds.asStateFlow()
 
-    private var connectionListener: ListenerRegistration? = null
     private var notificationListener: ListenerRegistration? = null
     private var savedEventsListener: ListenerRegistration? = null
     private var userProfileListener: ListenerRegistration? = null
+    private var eventsListener: ListenerRegistration? = null
+    private var seededNotifIds: MutableSet<String> = mutableSetOf()
 
     init {
+        _events.value = mergeDashboardEvents(emptyList())
         loadProfile()
         observeCachedState()
         startLiveListeners()
     }
 
+    private fun loadLocalCreatedEvents(): List<CommunityEvent> {
+        val jsonStr = eventsPrefs.getString("created_events", null) ?: return emptyList()
+        return runCatching {
+            val array = JSONArray(jsonStr)
+            (0 until array.length()).map { idx ->
+                val obj = array.getJSONObject(idx)
+                CommunityEvent(
+                    id = obj.getString("id"),
+                    title = obj.getString("title"),
+                    description = obj.getString("description"),
+                    organizerName = obj.getString("organizerName"),
+                    organizerType = EventOrganizerType.valueOf(obj.getString("organizerType")),
+                    venue = obj.getString("venue"),
+                    city = obj.getString("city"),
+                    startMillis = obj.getLong("startMillis"),
+                    emoji = obj.optString("emoji", ""),
+                    capacity = obj.getInt("capacity"),
+                    attendeeCount = obj.getInt("attendeeCount"),
+                    createdBy = obj.optString("createdBy", ""),
+                    createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun mergeDashboardEvents(remote: List<CommunityEvent>): List<DashboardEvent> {
+        val combined = (loadLocalCreatedEvents() + remote + demoEvents())
+            .distinctBy { it.id }
+            .sortedBy { it.startMillis }
+        return combined.mapIndexed { idx, ev ->
+            val accent = when (idx % 3) {
+                0 -> PeersLavender
+                1 -> PeersSky
+                else -> PeersMint
+            }
+            DashboardEvent(
+                id = ev.id,
+                title = ev.title,
+                organizer = ev.organizerName,
+                date = ev.date,
+                time = ev.time,
+                location = "${ev.venue}, ${ev.city}",
+                attendees = ev.attendeeCount,
+                emoji = "",
+                accent = accent,
+            )
+        }
+    }
+
+    fun refreshEvents() {
+        _events.value = mergeDashboardEvents(emptyList())
+    }
+
     private fun observeCachedState() {
         viewModelScope.launch {
-            cache.observeNotifications().collect { rows ->
-                _notifications.value = rows.map { row ->
-                    PeerNotification(
-                        id = row.id,
-                        title = row.title,
-                        body = row.body,
-                        emoji = row.emoji,
-                        timestampMillis = row.timestampMillis,
-                        isUnread = row.isUnread,
-                        type = when (row.type) {
-                            "connection_request" -> NotificationType.CONNECTION_REQUEST
-                            "connection_accepted" -> NotificationType.CONNECTION_ACCEPTED
-                            "request_sent" -> NotificationType.REQUEST_SENT
-                            else -> NotificationType.INFO
-                        },
-                    )
+            runCatching {
+                cache.observeNotifications().collect { rows ->
+                    _notifications.value = rows.map { row ->
+                        PeerNotification(
+                            id = row.id,
+                            title = row.title,
+                            body = row.body,
+                            emoji = row.emoji,
+                            timestampMillis = row.timestampMillis,
+                            isUnread = row.isUnread,
+                            type = when (row.type) {
+                                "connection_request" -> NotificationType.CONNECTION_REQUEST
+                                "connection_accepted" -> NotificationType.CONNECTION_ACCEPTED
+                                "request_sent" -> NotificationType.REQUEST_SENT
+                                else -> NotificationType.INFO
+                            },
+                        )
+                    }
+                    _unreadCount.value = rows.count { it.isUnread }
                 }
-                _unreadCount.value = rows.count { it.isUnread }
             }
         }
         viewModelScope.launch {
-            cache.observeSavedEventIds().collect { _savedEventIds.value = it }
+            runCatching {
+                cache.observeSavedEventIds().collect { _savedEventIds.value = it }
+            }
         }
+    }
+
+    private fun snapshotToUser(uid: String, snap: DocumentSnapshot?, authUser: FirebaseUser?): DashboardUser {
+        // Respect explicit Firestore avatar/photo edits: if user picked an avatar (photoUrl = ""),
+        // do NOT overwrite it with Google authUser?.photoUrl.
+        val hasStoredPhotoField = snap?.contains("photoUrl") == true
+        val storedPhoto = snap?.getString("photoUrl")?.takeIf { it.isNotBlank() }
+        val storedAvatar = snap?.get("avatarIndex")
+        val resolvedPhoto = when {
+            storedPhoto != null -> storedPhoto
+            hasStoredPhotoField || storedAvatar != null -> null
+            else -> authUser?.photoUrl?.toString()
+        }
+
+        return DashboardUser(
+            uid = uid,
+            name = snap?.getString("name").orEmpty().ifEmpty { authUser?.displayName ?: "Peer" },
+            email = snap?.getString("email").orEmpty().ifEmpty { authUser?.email.orEmpty() },
+            university = snap?.getString("university").orEmpty(),
+            course = snap?.getString("course").orEmpty(),
+            year = snap?.getString("yearOfStudy").orEmpty(),
+            city = snap?.getString("currentCity").orEmpty(),
+            currentState = snap?.getString("currentState").orEmpty(),
+            photoUrl = resolvedPhoto,
+            interests = (snap?.get("interests") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+            needs = (snap?.get("needs") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+            countryOfOrigin = snap?.getString("countryOfOrigin").orEmpty(),
+            currentCountry = snap?.getString("currentCountry").orEmpty(),
+            degreeLevel = snap?.getString("degreeLevel").orEmpty(),
+            commencingMonth = snap?.getString("commencingMonth").orEmpty(),
+            commencingYear = snap?.getString("commencingYear").orEmpty(),
+            degreeDurationYears = (snap?.getLong("degreeDurationYears") ?: 0L).toInt(),
+            expectedGraduationYear = snap?.getString("expectedGraduationYear").orEmpty(),
+            phoneCountryCode = snap?.getString("phoneCountryCode").orEmpty(),
+            phoneNumber = snap?.getString("phoneNumber").orEmpty(),
+            bio = snap?.getString("bio").orEmpty(),
+            languagesKnown = (snap?.get("languagesKnown") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+            avatarIndex = storedAvatar,
+        )
     }
 
     fun loadProfile() {
@@ -109,28 +213,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             _error.value = null
             try {
                 val snap = firestore.collection("users").document(uid).get().await()
-                val authUser = auth.currentUser
-                val avatarIdx = snap.get("avatarIndex")
-                _user.value = DashboardUser(
-                    uid = uid,
-                    name = snap.getString("name").orEmpty().ifEmpty { authUser?.displayName ?: "Peer" },
-                    email = snap.getString("email").orEmpty().ifEmpty { authUser?.email.orEmpty() },
-                    university = snap.getString("university").orEmpty(),
-                    course = snap.getString("course").orEmpty(),
-                    year = snap.getString("yearOfStudy").orEmpty(),
-                    city = snap.getString("currentCity").orEmpty(),
-                    photoUrl = snap.getString("photoUrl")?.takeIf { it.isNotBlank() }
-                        ?: authUser?.photoUrl?.toString(),
-                    interests = (snap.get("interests") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-                    needs = (snap.get("needs") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-                    countryOfOrigin = snap.getString("countryOfOrigin").orEmpty(),
-                    currentCountry = snap.getString("currentCountry").orEmpty(),
-                    degreeLevel = snap.getString("degreeLevel").orEmpty(),
-                    expectedGraduationYear = snap.getString("expectedGraduationYear").orEmpty(),
-                    bio = snap.getString("bio").orEmpty(),
-                    languagesKnown = (snap.get("languagesKnown") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-                    avatarIndex = avatarIdx,
-                )
+                _user.value = snapshotToUser(uid, snap, auth.currentUser)
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to load profile."
             } finally {
@@ -145,68 +228,41 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             userProfileListener?.remove()
             userProfileListener = firestore.collection("users").document(uid).addSnapshotListener { snap, err ->
                 if (err != null || snap == null || !snap.exists()) return@addSnapshotListener
-                val authUser = auth.currentUser
-                val avatarIdx = snap.get("avatarIndex")
-                _user.value = DashboardUser(
-                    uid = uid,
-                    name = snap.getString("name").orEmpty().ifEmpty { authUser?.displayName ?: "Peer" },
-                    email = snap.getString("email").orEmpty().ifEmpty { authUser?.email.orEmpty() },
-                    university = snap.getString("university").orEmpty(),
-                    course = snap.getString("course").orEmpty(),
-                    year = snap.getString("yearOfStudy").orEmpty(),
-                    city = snap.getString("currentCity").orEmpty(),
-                    photoUrl = snap.getString("photoUrl")?.takeIf { it.isNotBlank() }
-                        ?: authUser?.photoUrl?.toString(),
-                    interests = (snap.get("interests") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-                    needs = (snap.get("needs") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-                    countryOfOrigin = snap.getString("countryOfOrigin").orEmpty(),
-                    currentCountry = snap.getString("currentCountry").orEmpty(),
-                    degreeLevel = snap.getString("degreeLevel").orEmpty(),
-                    expectedGraduationYear = snap.getString("expectedGraduationYear").orEmpty(),
-                    bio = snap.getString("bio").orEmpty(),
-                    languagesKnown = (snap.get("languagesKnown") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-                    avatarIndex = avatarIdx,
-                )
+                _user.value = snapshotToUser(uid, snap, auth.currentUser)
             }
         }
         runCatching {
-            connectionListener?.remove()
-            connectionListener = connections.observeConnections { states ->
-                _connectionStates.value = states
+            eventsListener?.remove()
+            eventsListener = eventsRepo.observeEvents { remoteEvents ->
+                _events.value = mergeDashboardEvents(remoteEvents)
             }
         }
         runCatching {
             notificationListener?.remove()
             notificationListener = cache.observeRemoteNotifications { remote ->
-                viewModelScope.launch { cache.hydrateNotifications(remote) }
+                remote.filter { it.isUnread && it.id !in seededNotifIds }.forEach { notif ->
+                    seededNotifIds.add(notif.id)
+                    val prefKey = when (notif.type.lowercase()) {
+                        "connection_request", "connection_accepted" -> "notif_conn"
+                        "roommate" -> "notif_room"
+                        "forum" -> "notif_forum"
+                        else -> "notif_events"
+                    }
+                    PeersNotificationHelper.showSystemNotification(
+                        context = getApplication(),
+                        id = notif.id.hashCode(),
+                        title = notif.title,
+                        body = notif.body,
+                        prefKey = prefKey,
+                    )
+                }
+                viewModelScope.launch { runCatching { cache.hydrateNotifications(remote) } }
             }
         }
         runCatching {
             savedEventsListener?.remove()
             savedEventsListener = cache.observeRemoteSavedEvents { remote ->
-                viewModelScope.launch { cache.hydrateSavedEvents(remote) }
-            }
-        }
-    }
-
-    /** Sends a connection request; demo peers accept shortly after. */
-    fun connect(peer: SuggestedPeer) {
-        val current = _connectionStates.value[peer.uid] ?: ConnectionState.NONE
-        if (current != ConnectionState.NONE) return
-
-        _connectionStates.value = _connectionStates.value + (peer.uid to ConnectionState.SENDING)
-        viewModelScope.launch {
-            try {
-                connections.sendRequest(peer.uid, peer.name)
-                _actionMessage.value = "Request sent to ${peer.name.split(" ").first()} ✨"
-                if (peer.isDemoPeer) {
-                    delay(3500)
-                    connections.simulateAcceptance(peer.uid, peer.name)
-                    _actionMessage.value = "${peer.name.split(" ").first()} accepted! You can chat soon 🎉"
-                }
-            } catch (e: Exception) {
-                _connectionStates.value = _connectionStates.value + (peer.uid to ConnectionState.NONE)
-                _actionMessage.value = "Couldn't send request: ${e.message}"
+                viewModelScope.launch { runCatching { cache.hydrateSavedEvents(remote) } }
             }
         }
     }
@@ -215,6 +271,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _actionMessage.value = null
     }
 
+    /** Marks all notifications read in Room immediately, then syncs to Firestore. */
     fun markAllRead() {
         viewModelScope.launch {
             val synced = runCatching { cache.markAllNotificationsRead() }.getOrDefault(false)
@@ -249,13 +306,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         time = time.toString(),
         location = location,
         attendees = attendees,
-        emoji = emoji,
+        emoji = "",
         savedAt = System.currentTimeMillis(),
     )
 
     override fun onCleared() {
         userProfileListener?.remove()
-        connectionListener?.remove()
+        eventsListener?.remove()
         notificationListener?.remove()
         savedEventsListener?.remove()
         super.onCleared()

@@ -62,14 +62,14 @@ data class CategoryBreakdown(
 )
 
 enum class BudgetCategory(val label: String, val emoji: String) {
-    RENT("Rent", "🏠"),
-    FOOD("Food", "🍲"),
-    TRANSPORT("Transport", "🚌"),
-    UTILITIES("Utilities", "💡"),
-    BOOKS("Books", "📚"),
-    FUN("Fun", "🎉"),
-    HEALTH("Health", "🩺"),
-    OTHER("Other", "✨");
+    RENT("Rent", ""),
+    FOOD("Food", ""),
+    TRANSPORT("Transport", ""),
+    UTILITIES("Utilities", ""),
+    BOOKS("Books", ""),
+    FUN("Fun", ""),
+    HEALTH("Health", ""),
+    OTHER("Other", "");
 
     companion object {
         fun fromLabel(label: String): BudgetCategory =

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,8 +19,7 @@ sealed interface ProfileCompletion {
     data class Error(val message: String) : ProfileCompletion
 }
 
-class ProfileSetupViewModel : ViewModel()
-{
+class ProfileSetupViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
 
@@ -30,7 +30,7 @@ class ProfileSetupViewModel : ViewModel()
     val completion: StateFlow<ProfileCompletion> = _completion.asStateFlow()
 
     init {
-        // Prefill identity from the signed-in Google account (per documentation).
+        // Prefill identity from the signed-in Firebase account (Google or Manual)
         auth.currentUser?.let { user ->
             _state.update {
                 it.copy(
@@ -38,6 +38,20 @@ class ProfileSetupViewModel : ViewModel()
                     email = user.email ?: it.email,
                     photoUrl = user.photoUrl?.toString() ?: it.photoUrl
                 )
+            }
+            // Also hydrate any pre-saved Firestore name/fields if present
+            viewModelScope.launch {
+                val snap = runCatching {
+                    firestore.collection("users").document(user.uid).get().await()
+                }.getOrNull()
+                if (snap != null && snap.exists()) {
+                    _state.update { s ->
+                        s.copy(
+                            name = snap.getString("name")?.takeIf { it.isNotBlank() } ?: s.name,
+                            email = snap.getString("email")?.takeIf { it.isNotBlank() } ?: s.email,
+                        )
+                    }
+                }
             }
         }
     }
@@ -47,90 +61,174 @@ class ProfileSetupViewModel : ViewModel()
 
     // --- Navigation & Validation Logic ---
 
-    fun nextStep()
-    {
+    fun nextStep() {
         val currentState = _state.value
-        if (currentState.currentStep < 4 && canProceedToNextStep())
-        {
+        if (currentState.currentStep < 4 && canProceedToNextStep()) {
             _state.update { it.copy(currentStep = it.currentStep + 1) }
         }
     }
 
-    fun previousStep()
-    {
-        if (_state.value.currentStep > 1)
-        {
+    fun previousStep() {
+        if (_state.value.currentStep > 1) {
             _state.update { it.copy(currentStep = it.currentStep - 1) }
         }
     }
 
-    fun canProceedToNextStep(): Boolean
-    {
-        val currentState = _state.value
-        return when (currentState.currentStep)
-        {
+    fun canProceedToNextStep(): Boolean {
+        val s = _state.value
+        return when (s.currentStep) {
             1 -> {
-                // Required fields actually shown in BasicInformationStep
-                val isUniversityValid = if (currentState.university == "Other") {
-                    currentState.customUniversity.isNotBlank()
+                val isUniversityValid = if (s.university == "Other") {
+                    s.customUniversity.isNotBlank()
+                } else {
+                    s.university.isNotBlank()
                 }
-                else
-                {
-                    currentState.university.isNotBlank()
+                val isCourseValid = if (s.course == "Other") {
+                    s.customCourse.isNotBlank()
+                } else {
+                    s.course.isNotBlank()
                 }
 
-                currentState.currentCountry.isNotBlank() &&
-                        isUniversityValid &&
-                        currentState.course.isNotBlank()
+                s.countryOfOrigin.isNotBlank() &&
+                    s.currentCountry.isNotBlank() &&
+                    s.currentState.isNotBlank() &&
+                    s.currentCity.isNotBlank() &&
+                    isUniversityValid &&
+                    isCourseValid &&
+                    s.degreeLevel.isNotBlank() &&
+                    s.commencingMonth.isNotBlank() &&
+                    s.commencingYear.isNotBlank() &&
+                    s.yearOfStudy.isNotBlank()
             }
-            2 -> true // Photo is technically optional based on docs, or has a default avatar
-            3 -> currentState.selectedInterests.size >= 3 // Min 3 required
-            4 -> currentState.selectedNeeds.size >= 2     // Min 2 required
+            2 -> true // Photo or default avatar
+            3 -> s.selectedInterests.size >= 3 // Min 3 required
+            4 -> s.selectedNeeds.size >= 2     // Min 2 required
             else -> false
         }
     }
 
-    fun updateName(name: String) = _state.update { it.copy(name = name) }
-    fun updateEmail(email: String) = _state.update { it.copy(email = email) }
-
     // --- Step 1 Updates ---
 
     fun updateCountryOfOrigin(country: String) = _state.update { it.copy(countryOfOrigin = country) }
-    fun updateCurrentCountry(country: String) = _state.update { it.copy(currentCountry = country) }
-    fun updateCurrentCity(city: String) = _state.update { it.copy(currentCity = city) }
 
-    fun updateUniversity(uni: String) = _state.update{
+    fun updateCurrentCountry(country: String) = _state.update { s ->
+        if (s.currentCountry == country) s
+        else s.copy(
+            currentCountry = country,
+            currentState = "",
+            currentCity = "",
+            university = "",
+            customUniversity = "",
+        )
+    }
+
+    fun updateCurrentState(stateName: String) = _state.update { s ->
+        if (s.currentState == stateName) s
+        else s.copy(currentState = stateName, currentCity = "")
+    }
+
+    fun updateCurrentCity(city: String) = _state.update { s ->
+        val countryUnis = ProfileOptions.universitiesForLocation(s.currentCountry, city)
+        val keepUni = s.university.takeIf { it in countryUnis }.orEmpty()
+        s.copy(currentCity = city, university = keepUni)
+    }
+
+    fun updateUniversity(uni: String) = _state.update {
         it.copy(
             university = uni,
-            // Clear custom input if they switch away from "Other"
             customUniversity = if (uni != "Other") "" else it.customUniversity
         )
     }
 
     fun updateCustomUniversity(uni: String) = _state.update { it.copy(customUniversity = uni) }
 
-    fun updateCourse(course: String) = _state.update { it.copy(course = course) }
-    fun updateDegreeLevel(level: String) = _state.update { it.copy(degreeLevel = level) }
+    fun updateCourse(course: String) = _state.update {
+        it.copy(
+            course = course,
+            customCourse = if (course != "Other") "" else it.customCourse
+        )
+    }
+
+    fun updateCustomCourse(course: String) = _state.update { it.copy(customCourse = course) }
+
+    private fun recalculateSchedule(
+        degree: String,
+        month: String,
+        year: String,
+        fallbackStudyYear: String,
+    ): Triple<Int, String, String> {
+        val duration = ProfileOptions.durationForDegree(degree)
+        val gradYear = ProfileOptions.computeExpectedGraduationYear(year, duration)
+        val computedYear = ProfileOptions.computeCurrentYearLabel(month, year, duration)
+            .ifBlank { fallbackStudyYear }
+        return Triple(duration, gradYear, computedYear)
+    }
+
+    fun updateDegreeLevel(level: String) = _state.update { s ->
+        val (dur, grad, studyYr) = recalculateSchedule(level, s.commencingMonth, s.commencingYear, s.yearOfStudy)
+        s.copy(
+            degreeLevel = level,
+            degreeDurationYears = dur,
+            expectedGraduationYear = grad,
+            yearOfStudy = studyYr,
+        )
+    }
+
+    fun updateCommencingMonth(month: String) = _state.update { s ->
+        val (dur, grad, studyYr) = recalculateSchedule(s.degreeLevel, month, s.commencingYear, s.yearOfStudy)
+        s.copy(
+            commencingMonth = month,
+            degreeDurationYears = if (s.degreeLevel.isNotBlank()) dur else s.degreeDurationYears,
+            expectedGraduationYear = grad,
+            yearOfStudy = studyYr,
+        )
+    }
+
+    fun updateCommencingYear(year: String) = _state.update { s ->
+        val (dur, grad, studyYr) = recalculateSchedule(s.degreeLevel, s.commencingMonth, year, s.yearOfStudy)
+        s.copy(
+            commencingYear = year,
+            degreeDurationYears = if (s.degreeLevel.isNotBlank()) dur else s.degreeDurationYears,
+            expectedGraduationYear = grad,
+            yearOfStudy = studyYr,
+        )
+    }
+
     fun updateYearOfStudy(year: String) = _state.update { it.copy(yearOfStudy = year) }
     fun updateExpectedGraduationYear(year: String) = _state.update { it.copy(expectedGraduationYear = year) }
+    fun updatePhoneCountryCode(code: String) = _state.update { it.copy(phoneCountryCode = code) }
+    fun updatePhoneNumber(phone: String) = _state.update { it.copy(phoneNumber = phone.filter(Char::isDigit).take(15)) }
     fun updateBio(bio: String) = _state.update { it.copy(bio = bio) }
+
+    fun toggleLanguage(language: String) = _state.update { s ->
+        val updated = s.languagesKnown.toMutableList()
+        if (updated.contains(language)) updated.remove(language) else updated.add(language)
+        s.copy(languagesKnown = updated)
+    }
 
     // --- Step 2 Updates ---
 
-    fun updateProfileImage(uri: String?) = _state.update{
-        // If a real photo is uploaded, clear any selected predefined avatar
-        it.copy(profileImageUri = uri, selectedAvatar = null)
+    fun updateProfileImage(localUri: String?, dataUri: String? = null) = _state.update {
+        // Clear predefined avatar when user uploads/captures a personal photo
+        it.copy(
+            profileImageUri = localUri,
+            croppedPhotoDataUri = dataUri,
+            selectedAvatar = null
+        )
     }
 
     fun updateSelectedAvatar(avatarPath: String?) = _state.update {
-        // If an avatar is selected, clear any uploaded real photo
-        it.copy(selectedAvatar = avatarPath, profileImageUri = null)
+        // Clear personal photo when user switches to a predefined PEERS avatar
+        it.copy(
+            selectedAvatar = avatarPath,
+            profileImageUri = null,
+            croppedPhotoDataUri = null
+        )
     }
 
     // --- Step 3 Updates ---
 
-    fun toggleInterest(interest: String)
-    {
+    fun toggleInterest(interest: String) {
         val currentInterests = _state.value.selectedInterests.toMutableSet()
         if (currentInterests.contains(interest)) {
             currentInterests.remove(interest)
@@ -142,8 +240,7 @@ class ProfileSetupViewModel : ViewModel()
 
     // --- Step 4 Updates ---
 
-    fun toggleNeed(need: String)
-    {
+    fun toggleNeed(need: String) {
         val currentNeeds = _state.value.selectedNeeds.toMutableSet()
         if (currentNeeds.contains(need)) {
             currentNeeds.remove(need)
@@ -155,8 +252,7 @@ class ProfileSetupViewModel : ViewModel()
 
     // --- Final Submission ---
 
-    fun completeProfile()
-    {
+    fun completeProfile() {
         val uid = currentUserId
         if (uid == null) {
             _completion.value = ProfileCompletion.Error("Not signed in. Please sign in again.")
@@ -168,33 +264,54 @@ class ProfileSetupViewModel : ViewModel()
             _completion.value = ProfileCompletion.Saving
             try {
                 val s = _state.value
-                // Name/email/photo may not be re-captured in the form — fall back to the
-                // Google account values and merge so existing fields aren't clobbered.
                 val authUser = FirebaseAuth.getInstance().currentUser
+                val finalUni = if (s.university == "Other") s.customUniversity.trim() else s.university.trim()
+                val finalCourse = if (s.course == "Other") s.customCourse.trim() else s.course.trim()
+                val finalPhotoUrl = when {
+                    s.selectedAvatar != null -> ""
+                    !s.croppedPhotoDataUri.isNullOrBlank() -> s.croppedPhotoDataUri
+                    !s.profileImageUri.isNullOrBlank() -> s.profileImageUri
+                    else -> s.photoUrl?.takeIf { it.isNotBlank() } ?: authUser?.photoUrl?.toString() ?: ""
+                }
+                val finalAvatar = if (!s.croppedPhotoDataUri.isNullOrBlank() || !s.profileImageUri.isNullOrBlank()) {
+                    null
+                } else {
+                    s.selectedAvatar ?: "neutral/neutral1.png"
+                }
+
                 firestore.collection("users").document(uid).set(
                     mapOf(
                         "uid" to uid,
-                        "name" to s.name.ifBlank { authUser?.displayName ?: "" },
+                        "name" to s.name.ifBlank { authUser?.displayName ?: "Peer" },
                         "email" to s.email.ifBlank { authUser?.email ?: "" },
-                        "photoUrl" to (s.photoUrl?.takeIf { it.isNotBlank() }
-                            ?: authUser?.photoUrl?.toString() ?: ""),
-                        "countryOfOrigin" to s.countryOfOrigin,
-                        "currentCountry" to s.currentCountry,
-                        "currentCity" to s.currentCity,
-                        "university" to if (s.university == "Other") s.customUniversity else s.university,
-                        "course" to s.course,
+                        "photoUrl" to finalPhotoUrl,
+                        "countryOfOrigin" to s.countryOfOrigin.trim(),
+                        "currentCountry" to s.currentCountry.trim(),
+                        "currentState" to s.currentState.trim(),
+                        "currentCity" to s.currentCity.trim(),
+                        "university" to finalUni,
+                        "course" to finalCourse,
                         "degreeLevel" to s.degreeLevel,
+                        "degreeDurationYears" to s.degreeDurationYears,
+                        "commencingMonth" to s.commencingMonth,
+                        "commencingYear" to s.commencingYear,
                         "yearOfStudy" to s.yearOfStudy,
-                        "expectedGraduationYear" to s.expectedGraduationYear,
-                        "bio" to s.bio,
+                        "expectedGraduationYear" to s.expectedGraduationYear.trim(),
+                        "phoneCountryCode" to s.phoneCountryCode,
+                        "phoneNumber" to s.phoneNumber.trim(),
+                        "bio" to s.bio.trim(),
                         "languagesKnown" to s.languagesKnown,
-                        "avatarIndex" to s.selectedAvatar,
+                        "avatarIndex" to finalAvatar,
                         "interests" to s.selectedInterests.toList(),
                         "needs" to s.selectedNeeds.toList(),
                         "profileCompleted" to true
                     ),
-                    com.google.firebase.firestore.SetOptions.merge()
+                    SetOptions.merge()
                 ).await()
+
+                _state.update {
+                    it.copy(isCompletedScreen = true, completedUserId = uid)
+                }
                 _completion.value = ProfileCompletion.Success(uid)
             } catch (e: Exception) {
                 _completion.value = ProfileCompletion.Error(e.message ?: "Failed to save profile.")

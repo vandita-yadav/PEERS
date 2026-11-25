@@ -1,0 +1,16 @@
+Great work
+Issues that I am facing and things that needed to be fixed:-
+the app in my phone is crashing even after clearing cache in settings too
+1. If i login manually, then it is successfully happening, then I can choose the new avatars for profile photo and it will be updated in the side menu, but if I do the same by logging in using my existing google account and then change avatar then it is not happening in the side menu or not the profile page, and in the header near notification icon
+2. Next, please remove the emojis used all over the app, I have downloaded icons in white (for dark mode) and black color (for light mode) svg format and stored in drawable, please use them, either use the provided icons or if there is shortage of icons then refrain from using emojis keep it as it is.
+3. Implement back button at every screen and also whenever I click back button (given on the navigation of phone by the android system), it closes the app, so fix that please
+4. There is a lot of events mentioned in the calendar of the dashboard but when I go the events page, it is not there, so there has to be smooth and consistency in data throughout the app.
+5. I am thinking to remove "People you may know" section completely from the app and "Jobs and Internship" feature since for "People you may know" we should also have a chat window which i am not implementing because this app is for students to have all information at one place not some hinge + insta + reddit + olx + oyo + linkedin
+6. For peers ai student guide, it is giving some set answers which are already there in database, but I want to use llm or some api (gemini api) so that it gives answers related to the entire app only but in a more natural way rather than some 10 bullet point response
+7. Under discover what interests you - for the card "Make Friends", change it to "Discussion - Join other peers in the discussion"
+8. Remove "Jobs and internships" or better rename it to "Rentals and Transport"
+10. In the header, the Profile icon near notification symbol and even in the side menu, should open to the profile page
+11. In the bottom nav bar change the last "profile" icon to "settings" which should lead to the settings page of the app.
+12. In the profile page, under edit profile there should be button change profile picture by choosing pic from gallery or taking a photo or using existing avatar
+
+Is it possible to display the nav icons of android system (app drawer, home, back button) in different color because the app is also white so it is not visible at all unless dark mode activated

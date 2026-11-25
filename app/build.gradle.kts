@@ -21,10 +21,10 @@ android {
 
     defaultConfig {
         applicationId = "com.example.peers"
-        minSdk = 33
-        targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 6
+        versionName = "1.2.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -47,11 +47,22 @@ android {
         )
     }
 
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        dex {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
     compileOptions {
@@ -88,10 +99,11 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.navigation:navigation-compose:2.8.7")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-svg:2.7.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")

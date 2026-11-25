@@ -9,13 +9,13 @@ import com.example.peers.ui.theme.PeersSky
 import java.util.UUID
 
 enum class ChecklistCategory(val label: String, val emoji: String, val color: Color) {
-    ALL("All", "📋", PeersPrimaryIndigo),
-    VISA_DOCS("Visa & Docs", "📄", PeersLavender),
-    ACADEMIC("Academic", "🎓", PeersSky),
-    FINANCE("Financial", "💰", PeersMint),
-    HOUSING_PACKING("Housing & Packing", "🎒", Color(0xFFFFD9E2)),
-    ARRIVAL("Upon Arrival", "🛬", Color(0xFFFFE3C7)),
-    CUSTOM("Custom", "📌", Color(0xFFE4DDFF)),
+    ALL("All", "", PeersPrimaryIndigo),
+    VISA_DOCS("Visa & Docs", "", PeersLavender),
+    ACADEMIC("Academic", "", PeersSky),
+    FINANCE("Financial", "", PeersMint),
+    HOUSING_PACKING("Housing & Packing", "", Color(0xFFFFD9E2)),
+    ARRIVAL("Upon Arrival", "", Color(0xFFFFE3C7)),
+    CUSTOM("Custom", "", Color(0xFFE4DDFF)),
 }
 
 enum class ChecklistPriority(val label: String, val color: Color) {

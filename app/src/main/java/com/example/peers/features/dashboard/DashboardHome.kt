@@ -1,5 +1,6 @@
 package com.example.peers.features.dashboard
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
-import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -48,13 +48,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.peers.features.community.ConnectionState
+import com.example.peers.R
 import com.example.peers.features.dashboard.components.EventDot
+import com.example.peers.ui.theme.GoogleSans
+import com.example.peers.ui.theme.Lato
 import com.example.peers.ui.theme.PeersCoral
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPink
@@ -68,45 +72,38 @@ import java.util.Locale
 
 private val homeDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
 
-/** Content of the Home tab: dates, top events, PYMK, discover grid. */
+/**
+ * Content of the Home tab:
+ * - Unified Date Calendar Slider & Today's/Selected-Day Events (synced with Events tab)
+ * - PEERS AI Student Guide Banner
+ * - Discover What Interests You (with Discussion, Rentals & Transport, etc.; no People You May Know)
+ */
 @Composable
 fun DashboardHome(
     viewModel: DashboardViewModel,
     onOpenAccommodation: () -> Unit = {},
+    onOpenRentals: () -> Unit = {},
     onOpenBudget: () -> Unit = {},
     onOpenEvents: (LocalDate?) -> Unit = {},
     onOpenCommunity: () -> Unit = {},
+    onOpenContacts: () -> Unit = {},
     onOpenChecklist: () -> Unit = {},
     onOpenAssistant: () -> Unit = {},
 ) {
     val user by viewModel.user.collectAsStateWithLifecycle()
-    val connectionStates by viewModel.connectionStates.collectAsStateWithLifecycle()
+    val allEvents by viewModel.events.collectAsStateWithLifecycle()
     val savedEventIds by viewModel.savedEventIds.collectAsStateWithLifecycle()
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
-    var previewPeer by remember { mutableStateOf<SuggestedPeer?>(null) }
-
-    previewPeer?.let { peer ->
-        val me = user
-        if (me != null) {
-            PeerProfileSheet(
-                peer = peer,
-                me = me,
-                connectionState = connectionStates[peer.uid] ?: ConnectionState.NONE,
-                onConnect = { viewModel.connect(peer) },
-                onDismiss = { previewPeer = null },
-            )
-        }
-    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        item { DateSlider(today, selectedDate, DashboardMockData.events, onDateSelected = { selectedDate = it }) }
+        item { DateSlider(today, selectedDate, allEvents, onDateSelected = { selectedDate = it }) }
 
         item {
-            val shown = DashboardMockData.events.filter { it.date == selectedDate }
+            val shown = allEvents.filter { it.date == selectedDate }
             SectionHeader(
                 title = if (selectedDate == today) "Today's Events" else "Events on ${selectedDate.format(homeDateFormatter)}",
                 actionLabel = "View All",
@@ -114,52 +111,43 @@ fun DashboardHome(
             )
             if (shown.isEmpty()) {
                 EmptyStateCard(
-                    emoji = "🗓️",
                     message = "No events on this day.\nBrowse the full calendar instead!",
+                    onClick = { onOpenEvents(null) },
                 )
             } else {
                 EventsRow(
                     events = shown,
                     savedEventIds = savedEventIds,
                     onToggleSaved = viewModel::toggleSavedEvent,
+                    onOpenEvent = { onOpenEvents(selectedDate) },
                 )
             }
         }
 
         item {
-            SectionHeader(title = "People You May Know", actionLabel = "View All", onAction = { })
-            val me = user
-            if (me == null) {
-                EmptyStateCard(emoji = "🫂", message = "Sign in to meet peers from your university!")
-            } else {
-                val ranked = DashboardMockData.suggestedPeers
-                    .map { it to it.scoreFor(me) }
-                    .sortedByDescending { it.second }
-                    .take(3)
-                PeersRow(
-                    ranked = ranked,
-                    me = me,
-                    connectionStates = connectionStates,
-                    onOpenProfile = { previewPeer = it },
-                    onConnect = { viewModel.connect(it) },
-                )
-            }
-        }
-
-        item {
+            Spacer(Modifier.height(10.dp))
             AiAssistantBanner(onClick = onOpenAssistant)
         }
 
         item {
-            SectionHeader(title = "Discover What Interests You", actionLabel = "", onAction = { })
+            val userNeeds = user?.needs.orEmpty()
+            SectionHeader(
+                title = if (userNeeds.isNotEmpty()) "Discover What Interests You" else "Discover What Interests You",
+                actionLabel = "",
+                onAction = { }
+            )
             DiscoverGrid(
+                userNeeds = userNeeds,
                 onOpen = { item ->
-                    when (item.title) {
-                        "Make Friends" -> onOpenCommunity()
-                        "Events" -> onOpenEvents(null)
-                        "Accommodation" -> onOpenAccommodation()
-                        "Budget & Finance" -> onOpenBudget()
-                        "Student Checklist" -> onOpenChecklist()
+                    when (item.route) {
+                        "community" -> onOpenCommunity()
+                        "events" -> onOpenEvents(null)
+                        "accommodation" -> onOpenAccommodation()
+                        "rentals" -> onOpenRentals()
+                        "budget" -> onOpenBudget()
+                        "checklist" -> onOpenChecklist()
+                        "assistant" -> onOpenAssistant()
+                        "contacts" -> onOpenContacts()
                     }
                 }
             )
@@ -228,6 +216,7 @@ private fun EventsRow(
     events: List<DashboardEvent>,
     savedEventIds: Set<String>,
     onToggleSaved: (DashboardEvent) -> Unit,
+    onOpenEvent: (DashboardEvent) -> Unit,
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -238,6 +227,7 @@ private fun EventsRow(
                 event = event,
                 isSaved = event.id in savedEventIds,
                 onToggleSaved = { onToggleSaved(event) },
+                onClick = { onOpenEvent(event) },
             )
         }
     }
@@ -248,12 +238,15 @@ private fun EventCard(
     event: DashboardEvent,
     isSaved: Boolean,
     onToggleSaved: () -> Unit,
+    onClick: () -> Unit,
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        modifier = Modifier.width(250.dp),
+        modifier = Modifier
+            .width(250.dp)
+            .clickable(onClick = onClick),
     ) {
         Column(Modifier.padding(14.dp)) {
             Box(
@@ -290,7 +283,7 @@ private fun EventCard(
                         )
                     }
                 }
-                // Save for later — cached in Room for offline access.
+                // Save for later
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
@@ -312,18 +305,24 @@ private fun EventCard(
                         )
                     }
                 }
-                // Big emoji
-                Text(
-                    event.emoji,
-                    fontSize = 40.sp,
+                // Drawable Event Icon
+                Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(end = 18.dp),
-                )
+                ) {
+                    PeersDrawableIcon(
+                        lightRes = R.drawable.events_black,
+                        darkRes = R.drawable.events_white,
+                        contentDescription = null,
+                        size = 34.dp,
+                    )
+                }
             }
 
             Text(
                 event.title,
+                fontFamily = GoogleSans,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -332,6 +331,7 @@ private fun EventCard(
             )
             Text(
                 event.organizer,
+                fontFamily = Lato,
                 style = MaterialTheme.typography.labelMedium,
                 color = PeersPrimaryIndigo,
                 modifier = Modifier.padding(top = 2.dp),
@@ -341,9 +341,10 @@ private fun EventCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 10.dp),
             ) {
-                AttendeeAvatarStack(event.attendees)
+                AttendeeInitialStack(event.attendees)
                 Text(
                     " ${event.attendees} going",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -360,22 +361,23 @@ private fun EventCard(
                 )
                 Text(
                     " ${event.location} · ${event.time}",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
     }
 }
 
-/** Overlapping pastel bubbles suggesting who's going. */
 @Composable
-private fun AttendeeAvatarStack(count: Int) {
-    val emojis = listOf("🧑🏿", "👩🏽", "🧔🏽")
-    val colors = listOf(PeersLavender, PeersPrimaryIndigo, com.example.peers.ui.theme.PeersSky)
+private fun AttendeeInitialStack(count: Int) {
+    val letters = listOf("A", "R", "S")
+    val colors = listOf(PeersLavender, PeersPrimaryIndigo, PeersSky)
     Row {
-        emojis.forEachIndexed { index, emoji ->
+        letters.forEachIndexed { index, letter ->
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -383,13 +385,15 @@ private fun AttendeeAvatarStack(count: Int) {
                     .size(24.dp)
                     .clip(CircleShape)
                     .background(colors[index])
-                    .border(
-                        2.dp,
-                        MaterialTheme.colorScheme.surface,
-                        CircleShape,
-                    ),
+                    .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
             ) {
-                Text(emoji, fontSize = 11.sp)
+                Text(
+                    text = letter,
+                    fontFamily = GoogleSans,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    color = Color.White,
+                )
             }
         }
         Box(
@@ -402,7 +406,7 @@ private fun AttendeeAvatarStack(count: Int) {
                 .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
         ) {
             Text(
-                "+${(count - emojis.size).coerceAtLeast(0)}",
+                "+${(count - letters.size).coerceAtLeast(0)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 9.sp,
@@ -413,151 +417,88 @@ private fun AttendeeAvatarStack(count: Int) {
 
 // endregion
 
-// region — People You May Know ---------------------------------------------------------------
-
-@Composable
-private fun PeersRow(
-    ranked: List<Pair<SuggestedPeer, Int>>,
-    me: DashboardUser,
-    connectionStates: Map<String, ConnectionState>,
-    onOpenProfile: (SuggestedPeer) -> Unit,
-    onConnect: (SuggestedPeer) -> Unit,
-) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        items(ranked, key = { it.first.uid }) { (peer, score) ->
-            PeerCard(
-                peer = peer,
-                score = score,
-                me = me,
-                state = connectionStates[peer.uid] ?: ConnectionState.NONE,
-                onOpenProfile = { onOpenProfile(peer) },
-                onConnect = { onConnect(peer) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun PeerCard(
-    peer: SuggestedPeer,
-    score: Int,
-    me: DashboardUser,
-    state: ConnectionState,
-    onOpenProfile: () -> Unit,
-    onConnect: () -> Unit,
-) {
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        modifier = Modifier.width(190.dp).clickable(onClick = onOpenProfile),
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-        ) {
-            val emojis = listOf("🧑🏿", "👩🏿", "👦🏽", "👧🏼", "👩🏽", "🧔🏽", "🧕🏾")
-            val pastels = listOf(PeersLavender, PeersSky, MaterialTheme.colorScheme.surfaceVariant)
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(68.dp)
-                        .clip(CircleShape)
-                        .background(pastels[peer.avatarIndex.mod(pastels.size)]),
-                ) {
-                    Text(emojis[peer.avatarIndex.mod(emojis.size)], fontSize = 30.sp)
-                }
-                // Mini match badge, overlapping the avatar's lower edge.
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = PeersPrimaryIndigo,
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.surface),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 4.dp, bottom = 2.dp),
-                ) {
-                    Text(
-                        "${matchPercent(score)}%",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                    )
-                }
-            }
-            Text(
-                peer.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 8.dp),
-                maxLines = 1,
-            )
-            Text(
-                "${peer.course} · ${peer.year}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-            val topReason = peer.matchReasons(me).firstOrNull()
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            ) {
-                Text(
-                    topReason?.let { "${it.emoji} ${it.label}" } ?: "✨ Matches you",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                )
-            }
-            ConnectActionButton(
-                state = state,
-                onConnect = onConnect,
-                compact = true,
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-            )
-        }
-    }
-}
-
-// endregion
-
 // region — Discover grid ---------------------------------------------------------------------
 
 private data class DiscoverItem(
-    val emoji: String,
+    @DrawableRes val lightIcon: Int,
+    @DrawableRes val darkIcon: Int,
     val title: String,
     val subtitle: String,
     val accent: Color,
+    val route: String,
+    val needKey: String,
 )
 
-private val discoverItems = listOf(
-    DiscoverItem("🤝", "Make Friends", "Find peers near you", PeersLavender),
-    DiscoverItem("🎪", "Events", "What's happening on campus", PeersSky),
-    DiscoverItem("🏠", "Accommodation", "Rooms & flatmates", PeersMint),
-    DiscoverItem("💼", "Jobs & Internships", "Career opportunities", PeersWarmYellow),
-    DiscoverItem("💰", "Budget & Finance", "Split expenses smartly", PeersPink),
-    DiscoverItem("📝", "Student Checklist", "Arrival & prep tasks", PeersCoral),
+private val allDiscoverItems = listOf(
+    DiscoverItem(
+        R.drawable.community_black, R.drawable.community_white,
+        "Discussion", "Join other peers in the discussion", PeersLavender, "community", "Discussion"
+    ),
+    DiscoverItem(
+        R.drawable.events_black, R.drawable.events_white,
+        "Events & Activities", "What's happening on campus", PeersSky, "events", "Events"
+    ),
+    DiscoverItem(
+        R.drawable.accomodation_black, R.drawable.accomodation_white,
+        "Accommodation", "Rooms & flatmates", PeersMint, "accommodation", "Accommodation"
+    ),
+    DiscoverItem(
+        R.drawable.job_black, R.drawable.job_white,
+        "Rentals & Transport", "Bikes, shuttles & student exchange", PeersWarmYellow, "rentals", "Rentals"
+    ),
+    DiscoverItem(
+        R.drawable.budget_black, R.drawable.budget_white,
+        "Budget & Finance", "Split expenses smartly", PeersPink, "budget", "Budget"
+    ),
+    DiscoverItem(
+        R.drawable.checklist_black, R.drawable.checklist_white,
+        "Student Checklist", "Arrival & prep tasks", PeersCoral, "checklist", "Visa"
+    ),
+    DiscoverItem(
+        R.drawable.info_black, R.drawable.info_white,
+        "University Help", "Campus guidance & Q&A", PeersSky, "assistant", "University Help"
+    ),
+    DiscoverItem(
+        R.drawable.handshake_black, R.drawable.handshake_white,
+        "Helplines & Contacts", "Hospital, hostel & safety numbers", PeersPink, "contacts", "Helplines"
+    ),
 )
 
 @Composable
-private fun DiscoverGrid(onOpen: (DiscoverItem) -> Unit) {
+private fun DiscoverGrid(
+    userNeeds: List<String>,
+    onOpen: (DiscoverItem) -> Unit,
+) {
+    val prioritized = remember(userNeeds) {
+        if (userNeeds.isEmpty()) {
+            allDiscoverItems.take(6).map { it to false }
+        } else {
+            val matched = allDiscoverItems.filter { item ->
+                userNeeds.any { need ->
+                    need.contains(item.needKey, ignoreCase = true) ||
+                        (item.route == "rentals" && need.contains("Transport", ignoreCase = true)) ||
+                        (item.route == "community" && need.contains("Make Friends", ignoreCase = true))
+                }
+            }
+            val remaining = allDiscoverItems.filter { it !in matched }
+            val combined = matched.map { it to true } + remaining.take((6 - matched.size).coerceAtLeast(0)).map { it to false }
+            combined
+        }
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.padding(horizontal = 20.dp),
     ) {
-        discoverItems.chunked(2).forEach { rowItems ->
+        prioritized.chunked(2).forEach { rowItems ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                rowItems.forEach { item ->
-                    DiscoverCard(item, modifier = Modifier.weight(1f), onClick = { onOpen(item) })
+                rowItems.forEach { (item, isForYou) ->
+                    DiscoverCard(
+                        item = item,
+                        isForYou = isForYou,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onOpen(item) }
+                    )
                 }
                 if (rowItems.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -568,36 +509,77 @@ private fun DiscoverGrid(onOpen: (DiscoverItem) -> Unit) {
 @Composable
 private fun DiscoverCard(
     item: DiscoverItem,
+    isForYou: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier.clickable(onClick = onClick),
+        border = null,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 5.dp,
+            pressedElevation = 8.dp,
+        ),
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            item.accent.copy(alpha = 0.08f),
+                            MaterialTheme.colorScheme.surface,
+                        )
+                    )
+                )
+                .padding(14.dp),
+        ) {
             Row(verticalAlignment = Alignment.Top) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(42.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(item.accent),
+                        .background(item.accent.copy(alpha = 0.72f)),
                 ) {
-                    Text(item.emoji, fontSize = 20.sp)
+                    PeersDrawableIcon(
+                        lightRes = item.lightIcon,
+                        darkRes = item.darkIcon,
+                        contentDescription = item.title,
+                        size = 22.dp,
+                    )
                 }
                 Spacer(Modifier.weight(1f))
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowForward,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
+                if (isForYou) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = PeersPrimaryIndigo.copy(alpha = 0.14f),
+                    ) {
+                        Text(
+                            "For You",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PeersPrimaryIndigo,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
             Text(
                 item.title,
+                fontFamily = GoogleSans,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -607,6 +589,7 @@ private fun DiscoverCard(
             )
             Text(
                 item.subtitle,
+                fontFamily = Lato,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -626,10 +609,11 @@ private fun SectionHeader(title: String, actionLabel: String, onAction: () -> Un
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 8.dp, top = 22.dp, bottom = 12.dp),
+            .padding(start = 20.dp, end = 8.dp, top = 20.dp, bottom = 10.dp),
     ) {
         Text(
             title,
+            fontFamily = GoogleSans,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
@@ -637,7 +621,7 @@ private fun SectionHeader(title: String, actionLabel: String, onAction: () -> Un
         )
         if (actionLabel.isNotBlank()) {
             TextButton(onClick = onAction) {
-                Text(actionLabel, color = PeersPrimaryIndigo)
+                Text(actionLabel, fontFamily = GoogleSans, color = PeersPrimaryIndigo)
                 Icon(
                     Icons.AutoMirrored.Rounded.ArrowForward,
                     contentDescription = null,
@@ -650,8 +634,9 @@ private fun SectionHeader(title: String, actionLabel: String, onAction: () -> Un
 }
 
 @Composable
-private fun EmptyStateCard(emoji: String, message: String) {
+private fun EmptyStateCard(message: String, onClick: () -> Unit = {}) {
     Surface(
+        onClick = onClick,
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier
@@ -660,14 +645,21 @@ private fun EmptyStateCard(emoji: String, message: String) {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 22.dp, horizontal = 16.dp),
         ) {
-            Text(emoji, fontSize = 30.sp)
+            PeersDrawableIcon(
+                lightRes = R.drawable.calendar_black,
+                darkRes = R.drawable.calendar_white,
+                contentDescription = null,
+                size = 30.dp,
+            )
             Text(
                 message,
+                fontFamily = Lato,
+                textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 6.dp),
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
     }
@@ -707,7 +699,12 @@ private fun AiAssistantBanner(onClick: () -> Unit) {
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text("✨", fontSize = 22.sp)
+                PeersDrawableIcon(
+                    lightRes = R.drawable.aibot_black,
+                    darkRes = R.drawable.aibot_white,
+                    contentDescription = "PEERS AI Guide",
+                    size = 24.dp,
+                )
             }
 
             Spacer(modifier = Modifier.width(14.dp))
@@ -716,6 +713,7 @@ private fun AiAssistantBanner(onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "PEERS AI Student Guide",
+                        fontFamily = GoogleSans,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -735,7 +733,8 @@ private fun AiAssistantBanner(onClick: () -> Unit) {
                     }
                 }
                 Text(
-                    "Got questions on visas, jobs, banking or housing? Ask your advisor",
+                    "Ask anything about housing, rentals, budgeting, checklists, or campus events",
+                    fontFamily = Lato,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp)
