@@ -88,6 +88,15 @@ class AccommodationRepository(
         ).await()
     }
 
+    suspend fun deleteReview(listingId: String, newRating: Double, newCount: Int) {
+        val user = auth.currentUser ?: error("Not signed in")
+        val listing = listingsRef().document(listingId)
+        listing.collection("reviews").document(user.uid).delete().await()
+        runCatching {
+            listing.update(mapOf("rating" to newRating, "reviewCount" to newCount)).await()
+        }
+    }
+
     /** Sends a roommate request to the listing contributor. */
     suspend fun sendRoommateRequest(request: RoommateRequest) {
         val user = auth.currentUser ?: error("Not signed in")

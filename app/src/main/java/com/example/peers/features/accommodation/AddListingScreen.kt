@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -71,11 +72,11 @@ fun AddListingScreen(
     var amenities by remember { mutableStateOf(setOf<String>()) }
     var availability by remember { mutableStateOf("Available now") }
     var photoUrls by remember { mutableStateOf("") }
-    var emoji by remember { mutableStateOf(listingEmojis.first()) }
 
     val canSubmit = title.isNotBlank() && address.isNotBlank() && (rent.toIntOrNull() ?: 0) > 0
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {
@@ -205,19 +206,7 @@ fun AddListingScreen(
                     .padding(top = 14.dp),
             )
 
-            FormSection("Presentation")
-            FormLabel("Cover emoji")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listingEmojis) { option ->
-                    FilterChip(
-                        selected = emoji == option,
-                        onClick = { emoji = option },
-                        label = { Text(option, style = MaterialTheme.typography.titleMedium) },
-                        colors = addChipColors(),
-                    )
-                }
-            }
-
+            FormSection("Photos & Notes")
             OutlinedTextField(
                 value = photoUrls,
                 onValueChange = { photoUrls = it },
@@ -227,7 +216,7 @@ fun AddListingScreen(
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 14.dp),
+                    .padding(top = 6.dp),
             )
 
             Text(
@@ -255,7 +244,7 @@ fun AddListingScreen(
                                 .map(String::trim)
                                 .filter { it.startsWith("http") }
                                 .toList(),
-                            emoji = emoji,
+                            emoji = "",
                         )
                     )
                 },

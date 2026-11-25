@@ -91,10 +91,13 @@ class ProfileSetupViewModel : ViewModel() {
 
                 s.countryOfOrigin.isNotBlank() &&
                     s.currentCountry.isNotBlank() &&
+                    s.currentState.isNotBlank() &&
                     s.currentCity.isNotBlank() &&
                     isUniversityValid &&
                     isCourseValid &&
                     s.degreeLevel.isNotBlank() &&
+                    s.commencingMonth.isNotBlank() &&
+                    s.commencingYear.isNotBlank() &&
                     s.yearOfStudy.isNotBlank()
             }
             2 -> true // Photo or default avatar
@@ -107,8 +110,28 @@ class ProfileSetupViewModel : ViewModel() {
     // --- Step 1 Updates ---
 
     fun updateCountryOfOrigin(country: String) = _state.update { it.copy(countryOfOrigin = country) }
-    fun updateCurrentCountry(country: String) = _state.update { it.copy(currentCountry = country) }
-    fun updateCurrentCity(city: String) = _state.update { it.copy(currentCity = city) }
+
+    fun updateCurrentCountry(country: String) = _state.update { s ->
+        if (s.currentCountry == country) s
+        else s.copy(
+            currentCountry = country,
+            currentState = "",
+            currentCity = "",
+            university = "",
+            customUniversity = "",
+        )
+    }
+
+    fun updateCurrentState(stateName: String) = _state.update { s ->
+        if (s.currentState == stateName) s
+        else s.copy(currentState = stateName, currentCity = "")
+    }
+
+    fun updateCurrentCity(city: String) = _state.update { s ->
+        val countryUnis = ProfileOptions.universitiesForLocation(s.currentCountry, city)
+        val keepUni = s.university.takeIf { it in countryUnis }.orEmpty()
+        s.copy(currentCity = city, university = keepUni)
+    }
 
     fun updateUniversity(uni: String) = _state.update {
         it.copy(
@@ -127,9 +150,54 @@ class ProfileSetupViewModel : ViewModel() {
     }
 
     fun updateCustomCourse(course: String) = _state.update { it.copy(customCourse = course) }
-    fun updateDegreeLevel(level: String) = _state.update { it.copy(degreeLevel = level) }
+
+    private fun recalculateSchedule(
+        degree: String,
+        month: String,
+        year: String,
+        fallbackStudyYear: String,
+    ): Triple<Int, String, String> {
+        val duration = ProfileOptions.durationForDegree(degree)
+        val gradYear = ProfileOptions.computeExpectedGraduationYear(year, duration)
+        val computedYear = ProfileOptions.computeCurrentYearLabel(month, year, duration)
+            .ifBlank { fallbackStudyYear }
+        return Triple(duration, gradYear, computedYear)
+    }
+
+    fun updateDegreeLevel(level: String) = _state.update { s ->
+        val (dur, grad, studyYr) = recalculateSchedule(level, s.commencingMonth, s.commencingYear, s.yearOfStudy)
+        s.copy(
+            degreeLevel = level,
+            degreeDurationYears = dur,
+            expectedGraduationYear = grad,
+            yearOfStudy = studyYr,
+        )
+    }
+
+    fun updateCommencingMonth(month: String) = _state.update { s ->
+        val (dur, grad, studyYr) = recalculateSchedule(s.degreeLevel, month, s.commencingYear, s.yearOfStudy)
+        s.copy(
+            commencingMonth = month,
+            degreeDurationYears = if (s.degreeLevel.isNotBlank()) dur else s.degreeDurationYears,
+            expectedGraduationYear = grad,
+            yearOfStudy = studyYr,
+        )
+    }
+
+    fun updateCommencingYear(year: String) = _state.update { s ->
+        val (dur, grad, studyYr) = recalculateSchedule(s.degreeLevel, s.commencingMonth, year, s.yearOfStudy)
+        s.copy(
+            commencingYear = year,
+            degreeDurationYears = if (s.degreeLevel.isNotBlank()) dur else s.degreeDurationYears,
+            expectedGraduationYear = grad,
+            yearOfStudy = studyYr,
+        )
+    }
+
     fun updateYearOfStudy(year: String) = _state.update { it.copy(yearOfStudy = year) }
     fun updateExpectedGraduationYear(year: String) = _state.update { it.copy(expectedGraduationYear = year) }
+    fun updatePhoneCountryCode(code: String) = _state.update { it.copy(phoneCountryCode = code) }
+    fun updatePhoneNumber(phone: String) = _state.update { it.copy(phoneNumber = phone.filter(Char::isDigit).take(15)) }
     fun updateBio(bio: String) = _state.update { it.copy(bio = bio) }
 
     fun toggleLanguage(language: String) = _state.update { s ->
@@ -219,12 +287,18 @@ class ProfileSetupViewModel : ViewModel() {
                         "photoUrl" to finalPhotoUrl,
                         "countryOfOrigin" to s.countryOfOrigin.trim(),
                         "currentCountry" to s.currentCountry.trim(),
+                        "currentState" to s.currentState.trim(),
                         "currentCity" to s.currentCity.trim(),
                         "university" to finalUni,
                         "course" to finalCourse,
                         "degreeLevel" to s.degreeLevel,
+                        "degreeDurationYears" to s.degreeDurationYears,
+                        "commencingMonth" to s.commencingMonth,
+                        "commencingYear" to s.commencingYear,
                         "yearOfStudy" to s.yearOfStudy,
                         "expectedGraduationYear" to s.expectedGraduationYear.trim(),
+                        "phoneCountryCode" to s.phoneCountryCode,
+                        "phoneNumber" to s.phoneNumber.trim(),
                         "bio" to s.bio.trim(),
                         "languagesKnown" to s.languagesKnown,
                         "avatarIndex" to finalAvatar,

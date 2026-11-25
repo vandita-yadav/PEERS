@@ -1,10 +1,14 @@
 package com.example.peers.features.profile.components
 
+import android.Manifest
 import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -107,6 +111,18 @@ fun ProfilePictureStep(state: ProfileSetupState, viewModel: ProfileSetupViewMode
         }
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = createCameraPhotoUri(context)
+            pendingCameraUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Camera permission is required to take a photo.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // Interactive Image Editor Dialog
     rawPhotoForEditor?.let { uriToCrop ->
         ImageCropEditorDialog(
@@ -200,9 +216,15 @@ fun ProfilePictureStep(state: ProfileSetupState, viewModel: ProfileSetupViewMode
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
                     .clickable {
-                        val uri = createCameraPhotoUri(context)
-                        pendingCameraUri = uri
-                        cameraLauncher.launch(uri)
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                            PackageManager.PERMISSION_GRANTED
+                        ) {
+                            val uri = createCameraPhotoUri(context)
+                            pendingCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
                     }
             ) {
                 Column(

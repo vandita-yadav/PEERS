@@ -3,6 +3,7 @@ package com.example.peers.features.events
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.peers.features.notifications.PeersNotificationHelper
 import com.example.peers.features.offline.OfflineCacheRepository
 import com.example.peers.features.offline.SavedEventCacheEntity
 import com.google.firebase.firestore.ListenerRegistration
@@ -23,6 +24,7 @@ data class EventsUiState(
     val savedEventIds: Set<String> = emptySet(),
     val selectedDate: LocalDate? = null,
     val selectedOrganizer: EventOrganizerType? = null,
+    val showSavedOnly: Boolean = false,
     val query: String = "",
     val viewingEvent: CommunityEvent? = null,
     val activeAttendees: List<EventAttendee> = emptyList(),
@@ -93,6 +95,7 @@ class EventsViewModel @JvmOverloads constructor(
     private val _savedEventIds = MutableStateFlow<Set<String>>(emptySet())
     private val _selectedDate = MutableStateFlow<LocalDate?>(null)
     private val _selectedOrganizer = MutableStateFlow<EventOrganizerType?>(null)
+    private val _showSavedOnly = MutableStateFlow(false)
     private val _query = MutableStateFlow("")
     private val _viewingEvent = MutableStateFlow<CommunityEvent?>(null)
     private val _activeAttendees = MutableStateFlow<List<EventAttendee>>(emptyList())
@@ -138,9 +141,10 @@ class EventsViewModel @JvmOverloads constructor(
     private val filterState = combine(
         _selectedDate,
         _selectedOrganizer,
+        _showSavedOnly,
         _query,
-    ) { date, organizer, query ->
-        Triple(date, organizer, query)
+    ) { date, organizer, savedOnly, query ->
+        Quad(date, organizer, savedOnly, query)
     }
 
     private val viewState = combine(
@@ -159,10 +163,11 @@ class EventsViewModel @JvmOverloads constructor(
         filterState,
         viewState,
     ) { raw, attendance, savedIds, filter, view ->
-        val (date, organizer, query) = filter
+        val (date, organizer, savedOnly, query) = filter
         val (viewing, attendees, isCreating, loading) = view
 
         val filtered = raw.filter { event ->
+            val matchesSaved = !savedOnly || event.id in savedIds
             val matchesDate = date == null || event.date == date
             val matchesOrganizer = organizer == null || event.organizerType == organizer
             val matchesQuery = query.isBlank() ||
@@ -170,7 +175,7 @@ class EventsViewModel @JvmOverloads constructor(
                 event.description.contains(query, ignoreCase = true) ||
                 event.venue.contains(query, ignoreCase = true) ||
                 event.city.contains(query, ignoreCase = true)
-            matchesDate && matchesOrganizer && matchesQuery
+            matchesSaved && matchesDate && matchesOrganizer && matchesQuery
         }
 
         EventsUiState(
@@ -179,6 +184,7 @@ class EventsViewModel @JvmOverloads constructor(
             savedEventIds = savedIds,
             selectedDate = date,
             selectedOrganizer = organizer,
+            showSavedOnly = savedOnly,
             query = query,
             viewingEvent = viewing,
             activeAttendees = attendees,
@@ -197,6 +203,10 @@ class EventsViewModel @JvmOverloads constructor(
 
     fun onOrganizerSelected(type: EventOrganizerType?) {
         _selectedOrganizer.value = type
+    }
+
+    fun setSavedOnly(savedOnly: Boolean) {
+        _showSavedOnly.value = savedOnly
     }
 
     fun onQueryChange(newQuery: String) {
@@ -241,6 +251,13 @@ class EventsViewModel @JvmOverloads constructor(
         }
         if (willAttend) {
             _uiEvents.tryEmit(EventUiEvent.Message("You're attending ${event.title}!"))
+            PeersNotificationHelper.showSystemNotification(
+                context = getApplication(),
+                id = event.id.hashCode(),
+                title = "RSVP Confirmed: ${event.title}",
+                body = "Venue: ${event.venue} (${event.city})",
+                prefKey = "notif_events",
+            )
         } else {
             _uiEvents.tryEmit(EventUiEvent.Message("RSVP cancelled for ${event.title}."))
         }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -75,6 +76,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.peers.R
+import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -86,6 +89,10 @@ import kotlin.math.roundToInt
 @Composable
 fun AccommodationScreen(
     onBack: () -> Unit,
+    user: DashboardUser? = null,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AccommodationViewModel = viewModel(),
 ) {
@@ -118,58 +125,42 @@ fun AccommodationScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            "Nearby Accommodation",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            "${visible.size} stays around your campus",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showRoommates = true }) {
-                        BadgedBox(
-                            badge = {
-                                val pending = roommateRequests.count {
-                                    it.incoming && it.status == RoommateRequestStatus.PENDING
+            PeersSubScreenHeader(
+                title = "Accommodation",
+                subtitle = "${visible.size} stays near campus",
+                user = user,
+                unreadCount = unreadCount,
+                onBack = onBack,
+                onProfileClick = onProfileClick,
+                onBellClick = onBellClick,
+                trailingAction = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { showRoommates = true }, modifier = Modifier.size(36.dp)) {
+                            BadgedBox(
+                                badge = {
+                                    val pending = roommateRequests.count {
+                                        it.incoming && it.status == RoommateRequestStatus.PENDING
+                                    }
+                                    if (pending > 0) Badge { Text("$pending") }
                                 }
-                                if (pending > 0) {
-                                    Badge { Text("$pending") }
-                                }
+                            ) {
+                                Icon(Icons.Rounded.People, contentDescription = "Roommate matching", modifier = Modifier.size(20.dp))
                             }
-                        ) {
-                            Icon(Icons.Rounded.People, contentDescription = "Roommate matching")
                         }
-                    }
-                    IconButton(onClick = { showFilters = true }) {
-                        BadgedBox(
-                            badge = {
-                                if (filters.activeCount > 0) {
-                                    Badge { Text("${filters.activeCount}") }
+                        IconButton(onClick = { showFilters = true }, modifier = Modifier.size(36.dp)) {
+                            BadgedBox(
+                                badge = {
+                                    if (filters.activeCount > 0) Badge { Text("${filters.activeCount}") }
                                 }
+                            ) {
+                                Icon(Icons.Rounded.Tune, contentDescription = "Filters", modifier = Modifier.size(20.dp))
                             }
-                        ) {
-                            Icon(Icons.Rounded.Tune, contentDescription = "Filters")
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
             )
         },
         floatingActionButton = {
@@ -309,6 +300,8 @@ fun AccommodationScreen(
                 onMarkGenuine = { viewModel.markGenuine(listing) },
                 onRemoveGenuine = { viewModel.unmarkGenuine(listing) },
                 onAddReview = { rating, text -> viewModel.addReview(listing, rating, text) },
+                onEditReview = { review, rating, text -> viewModel.editReview(listing, review, rating, text) },
+                onDeleteReview = { review -> viewModel.deleteReview(listing, review) },
                 onReportReview = { reviewId -> viewModel.reportReview(listing.id, reviewId) },
                 onRoommateRequest = { contact, text ->
                     viewModel.sendRoommateRequest(listing, contact, text)

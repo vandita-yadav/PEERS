@@ -44,7 +44,12 @@ class ForumRepository(
             }
     }
 
-    suspend fun addPost(title: String, body: String, community: ForumCommunity): ForumPost {
+    suspend fun addPost(
+        title: String,
+        body: String,
+        community: ForumCommunity,
+        university: String,
+    ): ForumPost {
         val user = auth.currentUser ?: error("Not signed in")
         val ref = postsRef().document()
         val post = ForumPost(
@@ -56,6 +61,7 @@ class ForumRepository(
             authorEmoji = "",
             communityId = community.id,
             communityName = community.name,
+            university = university,
             upvoteCount = 0,
             commentCount = 0,
             createdAt = System.currentTimeMillis(),
@@ -66,9 +72,10 @@ class ForumRepository(
                 "body" to post.body,
                 "authorUid" to post.authorUid,
                 "authorName" to post.authorName,
-                "authorEmoji" to post.authorEmoji,
+                "authorEmoji" to "",
                 "communityId" to post.communityId,
                 "communityName" to post.communityName,
+                "university" to university,
                 "upvotedBy" to emptyList<String>(),
                 "upvoteCount" to 0,
                 "commentCount" to 0,
@@ -76,6 +83,28 @@ class ForumRepository(
             )
         ).await()
         return post
+    }
+
+    suspend fun updatePost(postId: String, title: String, body: String) {
+        postsRef().document(postId).update(
+            mapOf("title" to title, "body" to body)
+        ).await()
+    }
+
+    suspend fun deletePost(postId: String) {
+        postsRef().document(postId).delete().await()
+    }
+
+    suspend fun updateComment(postId: String, commentId: String, body: String) {
+        postsRef().document(postId).collection("comments").document(commentId)
+            .update("body", body)
+            .await()
+    }
+
+    suspend fun deleteComment(postId: String, commentId: String) {
+        val postRef = postsRef().document(postId)
+        postRef.collection("comments").document(commentId).delete().await()
+        runCatching { postRef.update("commentCount", FieldValue.increment(-1)).await() }
     }
 
     /** Toggles the signed-in student's upvote and keeps the count in sync. */
@@ -97,6 +126,7 @@ class ForumRepository(
                             "authorEmoji" to demo.authorEmoji,
                             "communityId" to demo.communityId,
                             "communityName" to demo.communityName,
+                            "university" to demo.university,
                             "upvotedBy" to listOf(currentUid),
                             "upvoteCount" to demo.upvoteCount + 1,
                             "commentCount" to demo.commentCount,
@@ -142,6 +172,7 @@ class ForumRepository(
                     "authorEmoji" to post.authorEmoji,
                     "communityId" to post.communityId,
                     "communityName" to post.communityName,
+                    "university" to post.university,
                     "upvotedBy" to emptyList<String>(),
                     "upvoteCount" to post.upvoteCount,
                     "commentCount" to 1,
@@ -190,7 +221,8 @@ class ForumRepository(
             authorName = getString("authorName").orEmpty().ifBlank { "A peer" },
             authorEmoji = "",
             communityId = getString("communityId").orEmpty(),
-            communityName = getString("communityName").orEmpty().ifBlank { "Community" },
+            communityName = getString("communityName").orEmpty().ifBlank { "General" },
+            university = getString("university").orEmpty(),
             upvoteCount = (getLong("upvoteCount") ?: voters.size.toLong()).toInt(),
             commentCount = (getLong("commentCount") ?: 0L).toInt(),
             createdAt = getTimestamp("createdAt")?.toDate()?.time ?: System.currentTimeMillis(),

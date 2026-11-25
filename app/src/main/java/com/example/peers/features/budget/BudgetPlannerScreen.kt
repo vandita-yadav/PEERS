@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,6 +36,8 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.TrendingUp
 import com.example.peers.R
+import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -103,6 +106,10 @@ private fun money(amount: Int): String = "₹${"%,d".format(amount)}"
 @Composable
 fun BudgetPlannerScreen(
     onBack: () -> Unit,
+    user: DashboardUser? = null,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: BudgetViewModel = viewModel(),
 ) {
@@ -127,31 +134,17 @@ fun BudgetPlannerScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                "Budget & Cost of Living",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                "Plan the month, track what you actually spend",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                    ),
+                PeersSubScreenHeader(
+                    title = "Budget & Cost of Living",
+                    subtitle = "Plan monthly spending & track costs",
+                    user = user,
+                    unreadCount = unreadCount,
+                    onBack = onBack,
+                    onProfileClick = onProfileClick,
+                    onBellClick = onBellClick,
                 )
             },
             floatingActionButton = {

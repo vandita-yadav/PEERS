@@ -210,14 +210,25 @@ private fun PeersAuthApp(
         }
 
         composable("dashboard") {
+            val activity = navController.context as ComponentActivity
             DashboardScreen(
                 themeMode = themeMode,
                 onToggleTheme = onToggleTheme,
                 onSetTheme = onSetTheme,
                 onSignOut = {
-                    authViewModel.signOut(navController.context as ComponentActivity)
+                    authViewModel.signOut(activity)
                     navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
-                }
+                },
+                onDeleteAccount = { onError ->
+                    authViewModel.deleteAccount(
+                        activity = activity,
+                        onDeleted = {
+                            Toast.makeText(activity, "Your PEERS account has been deleted.", Toast.LENGTH_LONG).show()
+                            navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
+                        },
+                        onError = onError,
+                    )
+                },
             )
         }
     }

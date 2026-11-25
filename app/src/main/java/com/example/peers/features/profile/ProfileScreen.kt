@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +69,7 @@ fun ProfileScreen(
     onBellClick: () -> Unit,
     onEditProfile: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenSavedEvents: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     BackHandler { onBack() }
@@ -250,6 +252,7 @@ fun ProfileScreen(
                     label = "Saved Events",
                     lightIcon = R.drawable.events_black,
                     darkIcon = R.drawable.events_white,
+                    modifier = Modifier.clickable(onClick = onOpenSavedEvents),
                 )
                 Box(
                     modifier = Modifier
@@ -454,8 +457,9 @@ private fun ProfileStatItem(
     label: String,
     @DrawableRes lightIcon: Int,
     @DrawableRes darkIcon: Int,
+    modifier: Modifier = Modifier,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             PeersDrawableIcon(
                 lightRes = lightIcon,

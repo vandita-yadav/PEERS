@@ -2,7 +2,10 @@ package com.example.peers.features.profile.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -107,19 +110,30 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
             onClick = { activePicker = "current_country" }
         )
 
-        // 3. Current City (Required - Searchable Dropdown with custom city option)
+        // 3. Current State / Province (Required - Cascading by Country)
+        SearchableSelectorField(
+            label = "Current State / Province *",
+            value = state.currentState,
+            placeholder = if (state.currentCountry.isBlank()) "Select Current Country first"
+            else "Select or enter your state (e.g. Punjab, Uttar Pradesh)",
+            onClick = { activePicker = "current_state" }
+        )
+
+        // 4. Current City (Required - Cascading by State)
         SearchableSelectorField(
             label = "Current City *",
             value = state.currentCity,
-            placeholder = "Search or select your current city",
+            placeholder = if (state.currentState.isBlank()) "Select Current State first"
+            else "Select or enter your current city",
             onClick = { activePicker = "current_city" }
         )
 
-        // 4. University / College (Required - Search/Select)
+        // 5. University / College (Strictly scoped to Current Country, city prioritized)
         SearchableSelectorField(
-            label = "University / College *",
+            label = "University / College / Institute *",
             value = state.university,
-            placeholder = "Search or select your university",
+            placeholder = if (state.currentCountry.isBlank()) "Select Current Country first"
+            else "Universities & institutes in ${state.currentCountry}",
             onClick = { activePicker = "university" }
         )
         AnimatedVisibility(visible = state.university == "Other") {
@@ -134,29 +148,10 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
             )
         }
 
-        // 5. Course / Program (Required - Search/Select over free text)
-        SearchableSelectorField(
-            label = "Course / Program *",
-            value = state.course,
-            placeholder = "Search or select your major / program",
-            onClick = { activePicker = "course" }
-        )
-        AnimatedVisibility(visible = state.course == "Other") {
-            OutlinedTextField(
-                value = state.customCourse,
-                onValueChange = { viewModel.updateCustomCourse(it) },
-                label = { Text("Enter Course / Program Name *", fontFamily = GoogleSans) },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth(),
-                colors = onboardingTextFieldColors()
-            )
-        }
-
-        // 6. Degree Level (Required - Clean selectable cards)
+        // 6. Degree (Required - Mapped to standard program duration)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Degree Level *",
+                text = "Degree *",
                 fontFamily = GoogleSans,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
@@ -167,8 +162,8 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                ProfileOptions.degreeLevels.forEach { level ->
-                    val selected = state.degreeLevel == level
+                ProfileOptions.degreeLevels.forEach { degree ->
+                    val selected = state.degreeLevel == degree
                     Surface(
                         shape = RoundedCornerShape(50),
                         color = if (selected) PeersPrimaryIndigo else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
@@ -178,10 +173,10 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
                         ),
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .clickable { viewModel.updateDegreeLevel(level) }
+                            .clickable { viewModel.updateDegreeLevel(degree) }
                     ) {
                         Text(
-                            text = level,
+                            text = degree,
                             fontFamily = GoogleSans,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                             fontSize = 13.sp,
@@ -191,28 +186,149 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
                     }
                 }
             }
+            if (state.degreeLevel.isNotBlank() && state.degreeDurationYears > 0) {
+                Text(
+                    text = "Mapped degree duration: ${state.degreeDurationYears} year(s)",
+                    fontFamily = Lato,
+                    fontSize = 12.5.sp,
+                    color = PeersPrimaryIndigo,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
 
-        // 7 & 8. Year of Study (Required) + Expected Graduation Year (Optional)
+        // 7. Domain / Specialization (Required)
+        SearchableSelectorField(
+            label = "Domain / Specialization *",
+            value = state.course,
+            placeholder = "e.g. Computer Science, IT, Food Technology, Performing Arts",
+            onClick = { activePicker = "course" }
+        )
+        AnimatedVisibility(visible = state.course == "Other") {
+            OutlinedTextField(
+                value = state.customCourse,
+                onValueChange = { viewModel.updateCustomCourse(it) },
+                label = { Text("Enter Domain / Specialization *", fontFamily = GoogleSans) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = onboardingTextFieldColors()
+            )
+        }
+
+        // 8. Degree Commencing Month & Year -> Auto-calculates Graduation Year & Study Year
+        Text(
+            text = "Degree Commencing *",
+            fontFamily = GoogleSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onBackground
+        )
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             SimpleDropdownField(
-                label = "Year of Study *",
-                value = state.yearOfStudy,
-                options = ProfileOptions.studyYears,
-                onSelect = { viewModel.updateYearOfStudy(it) },
+                label = "Commencing Month *",
+                value = state.commencingMonth,
+                options = ProfileOptions.commencingMonths,
+                onSelect = { viewModel.updateCommencingMonth(it) },
                 modifier = Modifier.weight(1f)
             )
             SimpleDropdownField(
-                label = "Grad Year (Optional)",
-                value = state.expectedGraduationYear,
-                options = listOf("Skip / Not sure") + ProfileOptions.graduationYears,
-                onSelect = { opt ->
-                    viewModel.updateExpectedGraduationYear(if (opt == "Skip / Not sure") "" else opt)
-                },
+                label = "Commencing Year *",
+                value = state.commencingYear,
+                options = ProfileOptions.commencingYears,
+                onSelect = { viewModel.updateCommencingYear(it) },
                 modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Auto-calculated Graduation Year summary + adjustable Current Study Year
+        if (state.expectedGraduationYear.isNotBlank()) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = PeersPrimaryIndigo.copy(alpha = 0.1f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        text = "Calculated Graduation Year",
+                        fontFamily = Lato,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${state.expectedGraduationYear} (${state.degreeDurationYears} yrs)",
+                        fontFamily = GoogleSans,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = PeersPrimaryIndigo
+                    )
+                }
+            }
+        }
+
+        SimpleDropdownField(
+            label = "Current Year of Study *",
+            value = state.yearOfStudy,
+            options = ProfileOptions.studyYears,
+            onSelect = { viewModel.updateYearOfStudy(it) },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // 9. Phone Number with Country Code (for international & local students)
+        Text(
+            text = "Phone Number (Optional)",
+            fontFamily = GoogleSans,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(0.36f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { activePicker = "dial_code" }
+            ) {
+                OutlinedTextField(
+                    value = state.phoneCountryCode,
+                    onValueChange = {},
+                    enabled = false,
+                    readOnly = true,
+                    label = { Text("Code", fontFamily = GoogleSans, fontSize = 12.sp) },
+                    trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, contentDescription = null) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        disabledBorderColor = PeersPrimaryIndigo.copy(alpha = 0.45f),
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                )
+            }
+            OutlinedTextField(
+                value = state.phoneNumber,
+                onValueChange = { viewModel.updatePhoneNumber(it) },
+                label = { Text("Mobile Number", fontFamily = GoogleSans) },
+                placeholder = { Text("9876543210", fontFamily = Lato) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.weight(0.64f),
+                colors = onboardingTextFieldColors()
             )
         }
 
@@ -322,9 +438,27 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
         val (title, options, allowCustom) = when (key) {
             "origin_country" -> Triple("Select Country of Origin", ProfileOptions.countries, false)
             "current_country" -> Triple("Select Current Country", ProfileOptions.countries, false)
-            "current_city" -> Triple("Select Current City", ProfileOptions.citiesForCountry(state.currentCountry), true)
-            "university" -> Triple("Select University / College", ProfileOptions.universities, false)
-            else -> Triple("Select Course / Program", ProfileOptions.courses, false)
+            "current_state" -> Triple(
+                "Select Current State / Province",
+                ProfileOptions.statesForCountry(state.currentCountry),
+                true
+            )
+            "current_city" -> Triple(
+                "Select Current City",
+                ProfileOptions.citiesForState(state.currentCountry, state.currentState),
+                true
+            )
+            "university" -> Triple(
+                "Universities in ${state.currentCountry.ifBlank { "Selected Country" }}",
+                ProfileOptions.universitiesForLocation(state.currentCountry, state.currentCity),
+                false
+            )
+            "dial_code" -> Triple(
+                "Select Country Dial Code",
+                ProfileOptions.dialCodes.map { it.displayLabel },
+                false
+            )
+            else -> Triple("Select Domain / Specialization", ProfileOptions.courses, false)
         }
         SearchableListBottomSheet(
             title = title,
@@ -332,8 +466,11 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
             selected = when (key) {
                 "origin_country" -> state.countryOfOrigin
                 "current_country" -> state.currentCountry
+                "current_state" -> state.currentState
                 "current_city" -> state.currentCity
                 "university" -> state.university
+                "dial_code" -> ProfileOptions.dialCodes.firstOrNull { it.code == state.phoneCountryCode }?.displayLabel
+                    ?: state.phoneCountryCode
                 else -> state.course
             },
             allowCustom = allowCustom,
@@ -341,8 +478,10 @@ fun BasicInformationStep(state: ProfileSetupState, viewModel: ProfileSetupViewMo
                 when (key) {
                     "origin_country" -> viewModel.updateCountryOfOrigin(chosen)
                     "current_country" -> viewModel.updateCurrentCountry(chosen)
+                    "current_state" -> viewModel.updateCurrentState(chosen)
                     "current_city" -> viewModel.updateCurrentCity(chosen)
                     "university" -> viewModel.updateUniversity(chosen)
+                    "dial_code" -> viewModel.updatePhoneCountryCode(chosen.substringBefore(" ").trim())
                     "course" -> viewModel.updateCourse(chosen)
                 }
                 activePicker = null

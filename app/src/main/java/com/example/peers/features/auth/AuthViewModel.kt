@@ -1,6 +1,7 @@
 package com.example.peers.features.auth
 
 import android.app.Activity
+import android.content.Context
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
@@ -12,6 +13,7 @@ import com.example.peers.BuildConfig
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FieldValue
@@ -334,6 +336,52 @@ class AuthViewModel : ViewModel() {
             }
             auth.signOut()
             _authState.value = AuthState.SignedOut
+        }
+    }
+
+    /**
+     * Permanently deletes the signed-in user's Firestore profile, local app caches,
+     * and Firebase Authentication account, then returns them to signed-out state.
+     */
+    fun deleteAccount(
+        activity: Activity,
+        onDeleted: () -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            onError("No active session found.")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val uid = currentUser.uid
+                // First delete Firebase Auth account (checks recent-login requirement before wiping DB)
+                currentUser.delete().await()
+                runCatching { firestore.collection("users").document(uid).delete().await() }
+                listOf(
+                    "peers_forum_local",
+                    "peers_rentals_local",
+                    "peers_events_local",
+                    "peers_settings",
+                    "peers_checklist",
+                ).forEach { prefName ->
+                    runCatching {
+                        activity.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit().clear().apply()
+                    }
+                }
+                runCatching {
+                    CredentialManager.create(activity).clearCredentialState(ClearCredentialStateRequest())
+                }
+                auth.signOut()
+                _authState.value = AuthState.SignedOut
+                onDeleted()
+            } catch (e: FirebaseAuthRecentLoginRequiredException) {
+                onError("For security, please sign out and log back in briefly, then tap Delete Account again.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Delete account failed", e)
+                onError(e.localizedMessage ?: "Failed to delete account. Please try again.")
+            }
         }
     }
 }

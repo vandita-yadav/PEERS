@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -82,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -93,6 +95,9 @@ import kotlinx.coroutines.launch
 fun ChecklistScreen(
     user: DashboardUser?,
     onBack: () -> Unit,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ChecklistViewModel = viewModel(),
 ) {
@@ -125,41 +130,27 @@ fun ChecklistScreen(
     val percent = if (total > 0) (completed * 100 / total) else 0
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 6.dp),
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-                Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text(
-                        "Student Checklist",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        "Personalized for ${user?.university ?: "Campus"}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = { showRegenerateDialog = true }) {
-                    Icon(
-                        Icons.Rounded.Refresh,
-                        contentDescription = "Regenerate",
-                        tint = PeersPrimaryIndigo,
-                    )
-                }
-            }
+            PeersSubScreenHeader(
+                title = "Student Checklist",
+                subtitle = "Personalized for ${user?.university?.ifBlank { "Campus" } ?: "Campus"}",
+                user = user,
+                unreadCount = unreadCount,
+                onBack = onBack,
+                onProfileClick = onProfileClick,
+                onBellClick = onBellClick,
+                trailingAction = {
+                    IconButton(onClick = { showRegenerateDialog = true }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = "Regenerate",
+                            tint = PeersPrimaryIndigo,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                },
+            )
         },
         floatingActionButton = {
             FloatingActionButton(

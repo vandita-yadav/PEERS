@@ -58,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.peers.R
+import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersLavender
 import com.example.peers.ui.theme.PeersMint
 import com.example.peers.ui.theme.PeersPrimaryIndigo
@@ -74,6 +76,8 @@ fun AccommodationDetails(
     onMarkGenuine: () -> Unit,
     onRemoveGenuine: () -> Unit,
     onAddReview: (Int, String) -> Unit,
+    onEditReview: (AccommodationReview, Int, String) -> Unit = { _, _, _ -> },
+    onDeleteReview: (AccommodationReview) -> Unit = {},
     onReportReview: (String) -> Unit,
     onRoommateRequest: (ContactInfo, String) -> Unit,
 ) {
@@ -81,6 +85,8 @@ fun AccommodationDetails(
     var showEnquiry by remember { mutableStateOf(false) }
     var enquirySent by remember { mutableStateOf(false) }
     var showReviewDialog by remember { mutableStateOf(false) }
+    var editingReview by remember { mutableStateOf<AccommodationReview?>(null) }
+    var deletingReview by remember { mutableStateOf<AccommodationReview?>(null) }
     var showRoommateDialog by remember { mutableStateOf(false) }
     var roommateSent by remember { mutableStateOf(false) }
 
@@ -250,8 +256,13 @@ fun AccommodationDetails(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                reviews.take(3).forEach { review ->
-                    ReviewRow(review = review, onReport = { onReportReview(review.id) })
+                reviews.take(5).forEach { review ->
+                    ReviewRow(
+                        review = review,
+                        onEdit = { editingReview = review },
+                        onDelete = { deletingReview = review },
+                        onReport = { onReportReview(review.id) },
+                    )
                 }
             }
             if (isReviewed) {
@@ -482,6 +493,70 @@ fun AccommodationDetails(
         )
     }
 
+    editingReview?.let { target ->
+        var rating by remember(target.id) { mutableIntStateOf(target.rating) }
+        var text by remember(target.id) { mutableStateOf(target.text) }
+        AlertDialog(
+            onDismissRequest = { editingReview = null },
+            title = { Text("Edit review") },
+            text = {
+                Column {
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        (1..5).forEach { star ->
+                            IconButton(onClick = { rating = star }) {
+                                Icon(
+                                    if (star <= rating) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                                    contentDescription = "$star stars",
+                                    tint = if (star <= rating) Color(0xFFF2B33D)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        placeholder = { Text("Update your review...") },
+                        minLines = 3,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onEditReview(target, rating, text)
+                        editingReview = null
+                    },
+                    enabled = rating > 0 && text.isNotBlank(),
+                ) { Text("Save", color = PeersPrimaryIndigo) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingReview = null }) { Text("Cancel") }
+            },
+        )
+    }
+
+    deletingReview?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deletingReview = null },
+            title = { Text("Delete your review?") },
+            text = { Text("This will remove your rating and review from ${listing.title}.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteReview(target)
+                        deletingReview = null
+                    },
+                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingReview = null }) { Text("Cancel") }
+            },
+        )
+    }
+
     if (showRoommateDialog) {
         var phone by remember { mutableStateOf("") }
         var email by remember { mutableStateOf("") }
@@ -561,7 +636,12 @@ fun AccommodationDetails(
 }
 
 @Composable
-private fun ReviewRow(review: AccommodationReview, onReport: () -> Unit) {
+private fun ReviewRow(
+    review: AccommodationReview,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onReport: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -596,14 +676,26 @@ private fun ReviewRow(review: AccommodationReview, onReport: () -> Unit) {
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            if (review.reported) {
+            if (review.isMine) {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    TextButton(onClick = onEdit) {
+                        Text("Edit", style = MaterialTheme.typography.labelSmall, color = PeersPrimaryIndigo)
+                    }
+                    TextButton(onClick = onDelete) {
+                        Text("Delete", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            } else if (review.reported) {
                 Text(
                     "Reported",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-            } else if (!review.isMine) {
+            } else {
                 TextButton(
                     onClick = onReport,
                     modifier = Modifier.align(Alignment.End),
@@ -625,7 +717,12 @@ private fun PhotoCarousel(listing: AccommodationListing) {
                 .height(190.dp)
                 .background(Brush.linearGradient(listOf(listing.accent, PeersSky))),
         ) {
-            Text(listing.emoji, fontSize = 72.sp)
+            PeersDrawableIcon(
+                lightRes = R.drawable.accomodation_black,
+                darkRes = R.drawable.accomodation_white,
+                contentDescription = listing.title,
+                size = 64.dp,
+            )
         }
         return
     }

@@ -86,6 +86,7 @@ fun DashboardHome(
     onOpenBudget: () -> Unit = {},
     onOpenEvents: (LocalDate?) -> Unit = {},
     onOpenCommunity: () -> Unit = {},
+    onOpenContacts: () -> Unit = {},
     onOpenChecklist: () -> Unit = {},
     onOpenAssistant: () -> Unit = {},
 ) {
@@ -146,6 +147,7 @@ fun DashboardHome(
                         "budget" -> onOpenBudget()
                         "checklist" -> onOpenChecklist()
                         "assistant" -> onOpenAssistant()
+                        "contacts" -> onOpenContacts()
                     }
                 }
             )
@@ -458,7 +460,7 @@ private val allDiscoverItems = listOf(
     ),
     DiscoverItem(
         R.drawable.handshake_black, R.drawable.handshake_white,
-        "Community Support", "Ask, share & connect", PeersPink, "community", "Community Support"
+        "Helplines & Contacts", "Hospital, hostel & safety numbers", PeersPink, "contacts", "Helplines"
     ),
 )
 
@@ -514,11 +516,28 @@ private fun DiscoverCard(
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = if (isForYou) BorderStroke(1.2.dp, PeersPrimaryIndigo.copy(alpha = 0.45f)) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier.clickable(onClick = onClick),
+        border = null,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 5.dp,
+            pressedElevation = 8.dp,
+        ),
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            item.accent.copy(alpha = 0.08f),
+                            MaterialTheme.colorScheme.surface,
+                        )
+                    )
+                )
+                .padding(14.dp),
+        ) {
             Row(verticalAlignment = Alignment.Top) {
                 Box(
                     contentAlignment = Alignment.Center,

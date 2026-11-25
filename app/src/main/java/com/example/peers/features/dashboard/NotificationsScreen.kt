@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -69,8 +71,10 @@ private val notifDateFormatter = DateTimeFormatter.ofPattern("EEEE, d MMM", Loca
 fun NotificationsScreen(
     viewModel: DashboardViewModel,
     onBack: () -> Unit,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val user by viewModel.user.collectAsStateWithLifecycle()
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
 
@@ -82,34 +86,24 @@ fun NotificationsScreen(
     val groups = notifications.groupBy { dayLabel(it.timestampMillis) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Notifications",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
+            PeersSubScreenHeader(
+                title = "Notifications",
+                subtitle = if (unreadCount > 0) "$unreadCount unread alerts" else "All caught up",
+                user = user,
+                unreadCount = unreadCount,
+                onBack = onBack,
+                onProfileClick = onProfileClick,
+                onBellClick = {},
+                trailingAction = {
                     if (unreadCount > 0) {
-                        Text(
-                            "$unreadCount unread",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = PeersPrimaryIndigo,
-                        )
+                        TextButton(onClick = { viewModel.markAllRead() }) {
+                            Text("Read all", color = PeersPrimaryIndigo, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
                     }
-                }
-                TextButton(
-                    enabled = unreadCount > 0,
-                    onClick = { viewModel.markAllRead() },
-                ) { Text("Mark all read") }
-            }
+                },
+            )
         },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,

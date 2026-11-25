@@ -78,6 +78,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.R
+import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import com.example.peers.ui.theme.PeersDrawableIcon
 import com.example.peers.ui.theme.PeersPrimaryIndigo
 import com.example.peers.ui.theme.PeersLavender
@@ -87,6 +89,10 @@ import com.example.peers.ui.theme.PeersSky
 @Composable
 fun AssistantScreen(
     onBack: () -> Unit,
+    user: DashboardUser? = null,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
     initialPrompt: String? = null,
     onInitialPromptConsumed: () -> Unit = {},
     onNavigateToChecklist: () -> Unit = {},
@@ -149,15 +155,26 @@ fun AssistantScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
             .imePadding()
     ) {
-        // Top App Bar
-        AssistantTopBar(
-            isGeminiLive = viewModel.isGeminiLive,
+        PeersSubScreenHeader(
+            title = "PEERS AI Guide",
+            subtitle = if (viewModel.isGeminiLive) "Gemini AI · Student Advisor" else "PEERS Student Guide",
+            user = user,
+            unreadCount = unreadCount,
             onBack = onBack,
-            onClearChat = { showClearDialog = true }
+            onProfileClick = onProfileClick,
+            onBellClick = onBellClick,
+            trailingAction = {
+                IconButton(onClick = { showClearDialog = true }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteOutline,
+                        contentDescription = "Clear Chat",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            },
         )
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))

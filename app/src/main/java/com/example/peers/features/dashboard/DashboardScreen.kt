@@ -12,10 +12,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +69,7 @@ import com.example.peers.features.accommodation.AccommodationScreen
 import com.example.peers.features.assistant.AssistantScreen
 import com.example.peers.features.budget.BudgetPlannerScreen
 import com.example.peers.features.checklist.ChecklistScreen
+import com.example.peers.features.contacts.ImportantContactsScreen
 import com.example.peers.features.dashboard.components.InviteFriendSheet
 import com.example.peers.features.dashboard.components.PeersHeader
 import com.example.peers.features.events.EventsScreen
@@ -99,6 +104,7 @@ fun DashboardScreen(
     onToggleTheme: () -> Unit,
     onSetTheme: ((PeersThemeMode) -> Unit)? = null,
     onSignOut: () -> Unit,
+    onDeleteAccount: (onError: (String) -> Unit) -> Unit = {},
     dashboardViewModel: DashboardViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -106,12 +112,14 @@ fun DashboardScreen(
     val scope = rememberCoroutineScope()
     var currentTab by remember { mutableStateOf(DashTab.HOME) }
     var targetEventDate by remember { mutableStateOf<LocalDate?>(null) }
+    var eventsSavedOnly by remember { mutableStateOf(false) }
 
     var showProfile by remember { mutableStateOf(false) }
     var showEditProfile by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
     var showAccommodation by remember { mutableStateOf(false) }
     var showRentals by remember { mutableStateOf(false) }
+    var showContacts by remember { mutableStateOf(false) }
     var showBudget by remember { mutableStateOf(false) }
     var showChecklist by remember { mutableStateOf(false) }
     var showAssistant by remember { mutableStateOf(false) }
@@ -139,6 +147,7 @@ fun DashboardScreen(
         showNotifications = false
         showAccommodation = false
         showRentals = false
+        showContacts = false
         showBudget = false
         showChecklist = false
         showAssistant = false
@@ -147,7 +156,7 @@ fun DashboardScreen(
     // Top-level system Back navigation guard:
     // Drawer -> Active overlays -> Non-Home tabs -> Double-back guard on Home.
     val hasActiveOverlay = showEditProfile || showProfile || showNotifications ||
-        showAccommodation || showRentals || showBudget || showChecklist || showAssistant
+        showAccommodation || showRentals || showContacts || showBudget || showChecklist || showAssistant
 
     BackHandler(enabled = drawerState.isOpen || !hasActiveOverlay) {
         when {
@@ -197,8 +206,14 @@ fun DashboardScreen(
                     showRentals = true
                     scope.launch { drawerState.close() }
                 },
+                onNavigateToContacts = {
+                    clearAllOverlays()
+                    showContacts = true
+                    scope.launch { drawerState.close() }
+                },
                 onNavigateToEvents = {
                     clearAllOverlays()
+                    eventsSavedOnly = false
                     currentTab = DashTab.EVENTS
                     scope.launch { drawerState.close() }
                 },
@@ -239,6 +254,7 @@ fun DashboardScreen(
         },
     ) {
         Scaffold(
+            contentWindowInsets = WindowInsets.safeDrawing,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 if (!hasActiveOverlay) {
@@ -255,6 +271,7 @@ fun DashboardScreen(
                                     currentTab = tab
                                     if (tab != DashTab.EVENTS) {
                                         targetEventDate = null
+                                        eventsSavedOnly = false
                                     }
                                     clearAllOverlays()
                                 },
@@ -334,6 +351,12 @@ fun DashboardScreen(
                             showProfile = false
                             currentTab = DashTab.SETTINGS
                         },
+                        onOpenSavedEvents = {
+                            showProfile = false
+                            targetEventDate = null
+                            eventsSavedOnly = true
+                            currentTab = DashTab.EVENTS
+                        },
                         modifier = Modifier.padding(innerPadding).fillMaxSize(),
                     )
                 }
@@ -341,18 +364,42 @@ fun DashboardScreen(
                     NotificationsScreen(
                         viewModel = dashboardViewModel,
                         onBack = { showNotifications = false },
+                        onProfileClick = {
+                            showNotifications = false
+                            showProfile = true
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
                 showAccommodation -> {
                     AccommodationScreen(
                         onBack = { showAccommodation = false },
+                        user = user,
+                        unreadCount = unreadCount,
+                        onProfileClick = {
+                            showAccommodation = false
+                            showProfile = true
+                        },
+                        onBellClick = {
+                            showAccommodation = false
+                            showNotifications = true
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
                 showRentals -> {
                     RentalsTransportScreen(
                         onBack = { showRentals = false },
+                        user = user,
+                        unreadCount = unreadCount,
+                        onProfileClick = {
+                            showRentals = false
+                            showProfile = true
+                        },
+                        onBellClick = {
+                            showRentals = false
+                            showNotifications = true
+                        },
                         onAskAiRentals = { prompt ->
                             showRentals = false
                             assistantInitialPrompt = prompt
@@ -361,9 +408,35 @@ fun DashboardScreen(
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
+                showContacts -> {
+                    ImportantContactsScreen(
+                        user = user,
+                        unreadCount = unreadCount,
+                        onBack = { showContacts = false },
+                        onProfileClick = {
+                            showContacts = false
+                            showProfile = true
+                        },
+                        onBellClick = {
+                            showContacts = false
+                            showNotifications = true
+                        },
+                        modifier = Modifier.padding(innerPadding),
+                    )
+                }
                 showBudget -> {
                     BudgetPlannerScreen(
                         onBack = { showBudget = false },
+                        user = user,
+                        unreadCount = unreadCount,
+                        onProfileClick = {
+                            showBudget = false
+                            showProfile = true
+                        },
+                        onBellClick = {
+                            showBudget = false
+                            showNotifications = true
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
@@ -371,12 +444,31 @@ fun DashboardScreen(
                     ChecklistScreen(
                         user = user,
                         onBack = { showChecklist = false },
+                        unreadCount = unreadCount,
+                        onProfileClick = {
+                            showChecklist = false
+                            showProfile = true
+                        },
+                        onBellClick = {
+                            showChecklist = false
+                            showNotifications = true
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
                 showAssistant -> {
                     AssistantScreen(
                         onBack = { showAssistant = false },
+                        user = user,
+                        unreadCount = unreadCount,
+                        onProfileClick = {
+                            showAssistant = false
+                            showProfile = true
+                        },
+                        onBellClick = {
+                            showAssistant = false
+                            showNotifications = true
+                        },
                         initialPrompt = assistantInitialPrompt,
                         onInitialPromptConsumed = { assistantInitialPrompt = null },
                         onNavigateToChecklist = {
@@ -397,6 +489,7 @@ fun DashboardScreen(
                         },
                         onNavigateToEvents = {
                             showAssistant = false
+                            eventsSavedOnly = false
                             currentTab = DashTab.EVENTS
                         },
                         onNavigateToCommunity = {
@@ -418,44 +511,39 @@ fun DashboardScreen(
                                 onOpenInvite = { showInviteSheet = true },
                                 onOpenRateUs = { openPlayStore(context) },
                                 onRequestSignOut = { showSignOutDialog = true },
+                                onDeleteAccount = onDeleteAccount,
                                 onOpenProfile = { showProfile = true },
+                                unreadCount = unreadCount,
+                                onBellClick = { showNotifications = true },
                                 onBack = { currentTab = DashTab.HOME },
                                 modifier = Modifier.padding(innerPadding),
                             )
                         }
                         DashTab.COMMUNITY -> {
-                            Column(Modifier.padding(innerPadding)) {
-                                PeersHeader(
-                                    user = user,
-                                    unreadCount = unreadCount,
-                                    onMenuClick = { scope.launch { drawerState.open() } },
-                                    onBellClick = { showNotifications = true },
-                                    onProfileClick = { showProfile = true },
-                                )
-                                ForumScreen(
-                                    onBack = { currentTab = DashTab.HOME },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
+                            ForumScreen(
+                                user = user,
+                                unreadCount = unreadCount,
+                                onProfileClick = { showProfile = true },
+                                onBellClick = { showNotifications = true },
+                                onBack = { currentTab = DashTab.HOME },
+                                modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                            )
                         }
                         DashTab.EVENTS -> {
-                            Column(Modifier.padding(innerPadding)) {
-                                PeersHeader(
-                                    user = user,
-                                    unreadCount = unreadCount,
-                                    onMenuClick = { scope.launch { drawerState.open() } },
-                                    onBellClick = { showNotifications = true },
-                                    onProfileClick = { showProfile = true },
-                                )
-                                EventsScreen(
-                                    initialDate = targetEventDate,
-                                    onBack = {
-                                        dashboardViewModel.refreshEvents()
-                                        currentTab = DashTab.HOME
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
+                            EventsScreen(
+                                initialDate = targetEventDate,
+                                initialSavedOnly = eventsSavedOnly,
+                                user = user,
+                                unreadCount = unreadCount,
+                                onProfileClick = { showProfile = true },
+                                onBellClick = { showNotifications = true },
+                                onBack = {
+                                    dashboardViewModel.refreshEvents()
+                                    eventsSavedOnly = false
+                                    currentTab = DashTab.HOME
+                                },
+                                modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                            )
                         }
                         DashTab.HOME -> {
                             Column(Modifier.padding(innerPadding)) {
@@ -470,6 +558,7 @@ fun DashboardScreen(
                                     viewModel = dashboardViewModel,
                                     onOpenAccommodation = { showAccommodation = true },
                                     onOpenRentals = { showRentals = true },
+                                    onOpenContacts = { showContacts = true },
                                     onOpenBudget = { showBudget = true },
                                     onOpenChecklist = { showChecklist = true },
                                     onOpenAssistant = {
@@ -478,6 +567,7 @@ fun DashboardScreen(
                                     },
                                     onOpenEvents = { date ->
                                         targetEventDate = date
+                                        eventsSavedOnly = false
                                         currentTab = DashTab.EVENTS
                                     },
                                     onOpenCommunity = { currentTab = DashTab.COMMUNITY },
@@ -546,6 +636,7 @@ private fun PeersDrawerSheet(
     onNavigateToNotifications: () -> Unit,
     onNavigateToAccommodation: () -> Unit,
     onNavigateToRentals: () -> Unit,
+    onNavigateToContacts: () -> Unit,
     onNavigateToEvents: () -> Unit,
     onNavigateToBudget: () -> Unit,
     onNavigateToChecklist: () -> Unit,
@@ -565,6 +656,8 @@ private fun PeersDrawerSheet(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState()),
         ) {
             // ── Clickable Profile Banner -> opens Profile Screen ──────────────
@@ -635,6 +728,7 @@ private fun PeersDrawerSheet(
                 DrawerItem(R.drawable.events_black, R.drawable.events_white, "Events", onClick = onNavigateToEvents)
                 DrawerItem(R.drawable.budget_black, R.drawable.budget_white, "Budget Planner", onClick = onNavigateToBudget)
                 DrawerItem(R.drawable.checklist_black, R.drawable.checklist_white, "Student Checklist", onClick = onNavigateToChecklist)
+                DrawerItem(R.drawable.info_black, R.drawable.info_white, "Helplines & Contacts", onClick = onNavigateToContacts)
 
                 DrawerSectionLabel("COMMUNITY")
                 DrawerItem(R.drawable.invite_black, R.drawable.invite_white, "Invite Friends", onClick = onNavigateToInvite)

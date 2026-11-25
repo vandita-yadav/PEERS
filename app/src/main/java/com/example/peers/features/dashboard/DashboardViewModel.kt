@@ -8,6 +8,7 @@ import com.example.peers.features.events.CommunityEvent
 import com.example.peers.features.events.EventOrganizerType
 import com.example.peers.features.events.EventsRepository
 import com.example.peers.features.events.demoEvents
+import com.example.peers.features.notifications.PeersNotificationHelper
 import com.example.peers.features.offline.OfflineCacheRepository
 import com.example.peers.features.offline.SavedEventCacheEntity
 import com.example.peers.ui.theme.PeersLavender
@@ -68,6 +69,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private var savedEventsListener: ListenerRegistration? = null
     private var userProfileListener: ListenerRegistration? = null
     private var eventsListener: ListenerRegistration? = null
+    private var seededNotifIds: MutableSet<String> = mutableSetOf()
 
     init {
         _events.value = mergeDashboardEvents(emptyList())
@@ -180,13 +182,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             course = snap?.getString("course").orEmpty(),
             year = snap?.getString("yearOfStudy").orEmpty(),
             city = snap?.getString("currentCity").orEmpty(),
+            currentState = snap?.getString("currentState").orEmpty(),
             photoUrl = resolvedPhoto,
             interests = (snap?.get("interests") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
             needs = (snap?.get("needs") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
             countryOfOrigin = snap?.getString("countryOfOrigin").orEmpty(),
             currentCountry = snap?.getString("currentCountry").orEmpty(),
             degreeLevel = snap?.getString("degreeLevel").orEmpty(),
+            commencingMonth = snap?.getString("commencingMonth").orEmpty(),
+            commencingYear = snap?.getString("commencingYear").orEmpty(),
+            degreeDurationYears = (snap?.getLong("degreeDurationYears") ?: 0L).toInt(),
             expectedGraduationYear = snap?.getString("expectedGraduationYear").orEmpty(),
+            phoneCountryCode = snap?.getString("phoneCountryCode").orEmpty(),
+            phoneNumber = snap?.getString("phoneNumber").orEmpty(),
             bio = snap?.getString("bio").orEmpty(),
             languagesKnown = (snap?.get("languagesKnown") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
             avatarIndex = storedAvatar,
@@ -232,6 +240,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         runCatching {
             notificationListener?.remove()
             notificationListener = cache.observeRemoteNotifications { remote ->
+                remote.filter { it.isUnread && it.id !in seededNotifIds }.forEach { notif ->
+                    seededNotifIds.add(notif.id)
+                    val prefKey = when (notif.type.lowercase()) {
+                        "connection_request", "connection_accepted" -> "notif_conn"
+                        "roommate" -> "notif_room"
+                        "forum" -> "notif_forum"
+                        else -> "notif_events"
+                    }
+                    PeersNotificationHelper.showSystemNotification(
+                        context = getApplication(),
+                        id = notif.id.hashCode(),
+                        title = notif.title,
+                        body = notif.body,
+                        prefKey = prefKey,
+                    )
+                }
                 viewModelScope.launch { runCatching { cache.hydrateNotifications(remote) } }
             }
         }

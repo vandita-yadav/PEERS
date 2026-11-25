@@ -1,8 +1,11 @@
 package com.example.peers.features.profile
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -145,7 +148,10 @@ fun EditProfileScreen(
     var expectedGraduationYear by remember { mutableStateOf(user?.expectedGraduationYear.orEmpty()) }
     var countryOfOrigin by remember { mutableStateOf(user?.countryOfOrigin.orEmpty()) }
     var currentCountry by remember { mutableStateOf(user?.currentCountry.orEmpty()) }
+    var currentState by remember { mutableStateOf(user?.currentState.orEmpty()) }
     var currentCity by remember { mutableStateOf(user?.city.orEmpty()) }
+    var phoneCountryCode by remember { mutableStateOf(user?.phoneCountryCode.orEmpty().ifBlank { "+91" }) }
+    var phoneNumber by remember { mutableStateOf(user?.phoneNumber.orEmpty()) }
     var bio by remember { mutableStateOf(user?.bio.orEmpty()) }
     var selectedLanguages by remember { mutableStateOf(user?.languagesKnown.orEmpty().toSet()) }
     var selectedInterests by remember { mutableStateOf(user?.interests.orEmpty().toSet()) }
@@ -176,6 +182,18 @@ fun EditProfileScreen(
         }
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = createEditCameraPhotoUri(context)
+            pendingCameraUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Camera permission is required to take a photo.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     rawPhotoForEditor?.let { uriToCrop ->
         ImageCropEditorDialog(
             imageUri = uriToCrop,
@@ -198,7 +216,10 @@ fun EditProfileScreen(
             expectedGraduationYear != (user?.expectedGraduationYear.orEmpty()) ||
             countryOfOrigin != (user?.countryOfOrigin.orEmpty()) ||
             currentCountry != (user?.currentCountry.orEmpty()) ||
+            currentState != (user?.currentState.orEmpty()) ||
             currentCity != (user?.city.orEmpty()) ||
+            phoneCountryCode != (user?.phoneCountryCode.orEmpty().ifBlank { "+91" }) ||
+            phoneNumber != (user?.phoneNumber.orEmpty()) ||
             bio != (user?.bio.orEmpty()) ||
             selectedLanguages != (user?.languagesKnown.orEmpty().toSet()) ||
             selectedInterests != (user?.interests.orEmpty().toSet()) ||
@@ -266,7 +287,10 @@ fun EditProfileScreen(
                                     "expectedGraduationYear" to expectedGraduationYear.trim(),
                                     "countryOfOrigin" to countryOfOrigin.trim(),
                                     "currentCountry" to currentCountry.trim(),
+                                    "currentState" to currentState.trim(),
                                     "currentCity" to currentCity.trim(),
+                                    "phoneCountryCode" to phoneCountryCode.trim(),
+                                    "phoneNumber" to phoneNumber.trim(),
                                     "bio" to bio.trim(),
                                     "languagesKnown" to selectedLanguages.toList(),
                                     "interests" to selectedInterests.toList(),
@@ -357,9 +381,15 @@ fun EditProfileScreen(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(14.dp))
                                 .clickable {
-                                    val uri = createEditCameraPhotoUri(context)
-                                    pendingCameraUri = uri
-                                    cameraLauncher.launch(uri)
+                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                                        PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        val uri = createEditCameraPhotoUri(context)
+                                        pendingCameraUri = uri
+                                        cameraLauncher.launch(uri)
+                                    } else {
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                    }
                                 },
                         ) {
                             Row(
@@ -674,14 +704,26 @@ fun EditProfileScreen(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
-                            value = currentCity,
-                            onValueChange = { currentCity = it },
-                            label = { Text("Current City") },
-                            placeholder = { Text("e.g. Phagwara / Jalandhar") },
+                            value = currentState,
+                            onValueChange = { currentState = it },
+                            label = { Text("Current State") },
+                            placeholder = { Text("e.g. Punjab") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                         )
+                        OutlinedTextField(
+                            value = currentCity,
+                            onValueChange = { currentCity = it },
+                            label = { Text("Current City") },
+                            placeholder = { Text("e.g. Phagwara") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
                             value = currentCountry,
                             onValueChange = { currentCountry = it },
@@ -691,17 +733,37 @@ fun EditProfileScreen(
                             shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                         )
+                        OutlinedTextField(
+                            value = countryOfOrigin,
+                            onValueChange = { countryOfOrigin = it },
+                            label = { Text("Country of Origin") },
+                            placeholder = { Text("e.g. India") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
                     }
 
-                    OutlinedTextField(
-                        value = countryOfOrigin,
-                        onValueChange = { countryOfOrigin = it },
-                        label = { Text("Country of Origin") },
-                        placeholder = { Text("e.g. India") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        singleLine = true,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = phoneCountryCode,
+                            onValueChange = { phoneCountryCode = it },
+                            label = { Text("Code") },
+                            placeholder = { Text("+91") },
+                            modifier = Modifier.weight(0.32f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = phoneNumber,
+                            onValueChange = { phoneNumber = it.filter(Char::isDigit).take(15) },
+                            label = { Text("Phone Number") },
+                            placeholder = { Text("9876543210") },
+                            modifier = Modifier.weight(0.68f),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                        )
+                    }
 
                     OutlinedTextField(
                         value = bio,

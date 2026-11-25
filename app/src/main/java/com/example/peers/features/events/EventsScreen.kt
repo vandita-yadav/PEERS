@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -83,6 +84,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.peers.R
+import com.example.peers.features.dashboard.DashboardUser
+import com.example.peers.features.dashboard.components.PeersSubScreenHeader
 import com.example.peers.ui.theme.PeersDrawableIcon
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.ui.theme.PeersLavender
@@ -99,16 +102,22 @@ fun EventsScreen(
     modifier: Modifier = Modifier,
     viewModel: EventsViewModel = viewModel(),
     initialDate: LocalDate? = null,
+    initialSavedOnly: Boolean = false,
+    user: DashboardUser? = null,
+    unreadCount: Int = 0,
+    onProfileClick: () -> Unit = {},
+    onBellClick: () -> Unit = {},
     onBack: (() -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(initialDate) {
+    LaunchedEffect(initialDate, initialSavedOnly) {
         if (initialDate != null) {
             viewModel.onDateSelected(initialDate)
         }
+        viewModel.setSavedOnly(initialSavedOnly)
     }
 
     LaunchedEffect(state.events.size, state.selectedDate) {
@@ -126,6 +135,7 @@ fun EventsScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize(),
@@ -135,11 +145,38 @@ fun EventsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Screen Header & Search Bar
+            if (onBack != null) {
+                PeersSubScreenHeader(
+                    title = "Campus & City Events",
+                    subtitle = "LPU venues, meetups & workshops",
+                    user = user,
+                    unreadCount = unreadCount,
+                    onBack = onBack,
+                    onProfileClick = onProfileClick,
+                    onBellClick = onBellClick,
+                    trailingAction = {
+                        Button(
+                            onClick = { viewModel.setCreatingEvent(true) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PeersPrimaryIndigo,
+                                contentColor = Color.White,
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("Create", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                    },
+                )
+            }
+            // Search Bar & Filter Chips
             EventsHeader(
                 query = state.query,
                 onQueryChange = viewModel::onQueryChange,
                 onCreateClick = { viewModel.setCreatingEvent(true) },
+                showTitleRow = onBack == null,
                 onBack = onBack,
             )
 
@@ -150,10 +187,16 @@ fun EventsScreen(
                 events = state.events,
             )
 
-            // Organizer Category Filters
+            // Organizer Category & Saved Events Filters
             OrganizerFilterRow(
                 selected = state.selectedOrganizer,
-                onSelected = viewModel::onOrganizerSelected
+                showSavedOnly = state.showSavedOnly,
+                savedCount = state.savedEventIds.size,
+                onSelected = {
+                    viewModel.setSavedOnly(false)
+                    viewModel.onOrganizerSelected(it)
+                },
+                onToggleSavedOnly = { viewModel.setSavedOnly(!state.showSavedOnly) },
             )
 
             // Events List or Empty State
@@ -165,9 +208,11 @@ fun EventsScreen(
                 ) {
                     EventsEmptyState(
                         selectedDate = state.selectedDate,
+                        showSavedOnly = state.showSavedOnly,
                         onResetFilter = {
                             viewModel.onDateSelected(null)
                             viewModel.onOrganizerSelected(null)
+                            viewModel.setSavedOnly(false)
                             viewModel.onQueryChange("")
                         }
                     )
@@ -227,62 +272,65 @@ private fun EventsHeader(
     query: String,
     onQueryChange: (String) -> Unit,
     onCreateClick: () -> Unit,
+    showTitleRow: Boolean = true,
     onBack: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        if (showTitleRow) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (onBack != null) {
-                    IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onBackground,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Column {
+                        Text(
+                            text = "Campus & City Events",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Meetups, study circles & orientations",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+
+                Button(
+                    onClick = onCreateClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PeersPrimaryIndigo,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
-                }
-                Column {
-                    Text(
-                        text = "Campus & City Events",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Meetups, study circles & orientations",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Create", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             }
 
-            Button(
-                onClick = onCreateClick,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PeersPrimaryIndigo,
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(20.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Create", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            }
+            Spacer(Modifier.height(10.dp))
         }
-
-        Spacer(Modifier.height(10.dp))
 
         // Search Bar
         OutlinedTextField(
@@ -422,7 +470,10 @@ private fun DateCalendarRibbon(
 @Composable
 private fun OrganizerFilterRow(
     selected: EventOrganizerType?,
+    showSavedOnly: Boolean,
+    savedCount: Int,
     onSelected: (EventOrganizerType?) -> Unit,
+    onToggleSavedOnly: () -> Unit,
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
@@ -431,12 +482,37 @@ private fun OrganizerFilterRow(
     ) {
         item {
             FilterChip(
-                selected = selected == null,
+                selected = selected == null && !showSavedOnly,
                 onClick = { onSelected(null) },
                 label = { Text("All Categories", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = PeersLavender.copy(alpha = 0.35f),
                     selectedLabelColor = PeersPrimaryIndigo,
+                )
+            )
+        }
+        item {
+            FilterChip(
+                selected = showSavedOnly,
+                onClick = onToggleSavedOnly,
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (showSavedOnly) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                    )
+                },
+                label = {
+                    Text(
+                        if (savedCount > 0) "Saved ($savedCount)" else "Saved",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = PeersPrimaryIndigo,
+                    selectedLabelColor = Color.White,
+                    selectedLeadingIconColor = Color.White,
                 )
             )
         }
@@ -737,6 +813,7 @@ private fun EventCard(
 @Composable
 private fun EventsEmptyState(
     selectedDate: LocalDate?,
+    showSavedOnly: Boolean = false,
     onResetFilter: () -> Unit,
 ) {
     Column(
@@ -764,7 +841,11 @@ private fun EventsEmptyState(
         Spacer(Modifier.height(16.dp))
 
         Text(
-            text = if (selectedDate != null) "No events scheduled for this day" else "No matching events found",
+            text = when {
+                showSavedOnly -> "No saved events yet"
+                selectedDate != null -> "No events scheduled for this day"
+                else -> "No matching events found"
+            },
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
@@ -773,7 +854,8 @@ private fun EventsEmptyState(
         Spacer(Modifier.height(6.dp))
 
         Text(
-            text = "Try picking another date from the calendar or resetting your filters to see upcoming events.",
+            text = if (showSavedOnly) "Tap the bookmark icon on any event card to save it here for quick access."
+            else "Try picking another date from the calendar or resetting your filters to see upcoming events.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -1130,12 +1212,29 @@ private fun CreateEventSheet(
 
             Spacer(Modifier.height(12.dp))
 
+            Text("Quick Select LPU Venue", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = PeersPrimaryIndigo)
+            Spacer(Modifier.height(6.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(genuineLpuVenues) { preset ->
+                    FilterChip(
+                        selected = venue == preset,
+                        onClick = { venue = preset },
+                        label = { Text(preset, fontSize = 11.5.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PeersPrimaryIndigo,
+                            selectedLabelColor = Color.White,
+                        ),
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = venue,
                     onValueChange = { venue = it },
                     label = { Text("Venue") },
-                    placeholder = { Text("e.g. Student Quad") },
+                    placeholder = { Text("e.g. Block 34 · Room 201") },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.weight(1f)
