@@ -397,11 +397,13 @@ fun RentalsTransportScreen(
             contentPadding = PaddingValues(
                 start = 20.dp,
                 end = 20.dp,
-                top = innerPadding.calculateTopPadding() + 4.dp,
+                top = 8.dp,
                 bottom = 96.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
         ) {
             // ── Pre-loaded PEERS AI Guide Card ────────────────────────────────
             item {
@@ -530,7 +532,7 @@ fun RentalsTransportScreen(
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
-                                    text = "${item.provider} · ${item.pickupLocation}",
+                                    text = if (item.pickupLocation.isNotBlank()) "${item.provider} · ${item.pickupLocation}" else item.provider,
                                     fontFamily = Lato,
                                     fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -785,24 +787,26 @@ private fun RentalDetailView(
                         modifier = Modifier.padding(top = 2.dp),
                     )
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 10.dp),
-                    ) {
-                        Icon(
-                            Icons.Rounded.Place,
-                            contentDescription = null,
-                            tint = PeersPrimaryIndigo,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = item.pickupLocation,
-                            fontFamily = GoogleSans,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 13.5.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
+                    if (item.pickupLocation.isNotBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 10.dp),
+                        ) {
+                            Icon(
+                                Icons.Rounded.Place,
+                                contentDescription = null,
+                                tint = PeersPrimaryIndigo,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = item.pickupLocation,
+                                fontFamily = GoogleSans,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.5.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
                     }
 
                     HorizontalDivider(Modifier.padding(vertical = 14.dp))
@@ -1054,8 +1058,18 @@ private fun AddRentalListingSheet(
             OutlinedTextField(
                 value = location,
                 onValueChange = { location = it },
-                label = { Text("Pickup / Campus Location") },
-                placeholder = { Text("e.g. Law Gate / BH-4 / Block 34") },
+                label = {
+                    Text(
+                        if (category == RentalCategory.LOST_AND_FOUND) "Location (optional)"
+                        else "Pickup / Campus Location (optional)"
+                    )
+                },
+                placeholder = {
+                    Text(
+                        if (category == RentalCategory.LOST_AND_FOUND) "e.g. Law Gate / Block 34 — or leave blank if unknown"
+                        else "e.g. Law Gate / BH-4 / Block 34"
+                    )
+                },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth(),
@@ -1117,7 +1131,9 @@ private fun AddRentalListingSheet(
                             },
                             category = category,
                             rateLabel = rateLabel.trim().ifBlank { category.label },
-                            pickupLocation = location.trim().ifBlank { "Campus" },
+                            pickupLocation = location.trim().ifBlank {
+                                if (category == RentalCategory.LOST_AND_FOUND) "" else "Campus"
+                            },
                             details = details.trim(),
                             highlights = listOf(category.label),
                             postedBy = postedBy.trim().ifBlank { "Student Peer" },

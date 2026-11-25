@@ -362,3 +362,20 @@ features/
 ├── settings/        (SettingsScreen.kt, EditProfileScreen.kt)
 ├── ...              (forum, events, checklist, chatbot, jobs, budget, help)
 ```
+
+---
+
+## PART 10 — PRODUCTION IMPLEMENTATION SUMMARY (v1.2.5 – v1.2.6)
+
+The planned sections above alongside major platform upgrades have now been implemented across the codebase:
+
+1. **Dual Authentication (Google OAuth + Manual Auth):** Credential Manager Google Sign-In alongside validated manual email/password sign-up & login flows, duplicate account protection, and **Delete Account Permanently** in Settings.
+2. **Cascading Academic Profile & Dial Codes:** `Country -> State -> City -> University` cascading pickers (prioritizing country-scoped universities), Degree-to-Duration mapping with Commencing Month/Year graduation calculator, Domain/Specialization, and international Phone dial-code selector.
+3. **Unified Fixed Headers & Edge-to-Edge Insets:** Solid, pinned `PeersSubScreenHeader` across inner screens (`Rentals & Transport`, `Helplines & Contacts`, `Accommodation`, `Events`, `Discussion`, `Budget`, `Checklist`, `Settings`, `Assistant`, `Notifications`), leaving `PeersHeader` exclusive to Dashboard Home.
+4. **Accommodation Finder:** Curated LPU/Phagwara/Law Gate/Meheru/Chaheru stays, scrollable filter sheet with explicit **Save Filters** button, `+ Add Listing`, peer verification, Edit/Delete own reviews, Wishlist sync, and Roommate requests.
+5. **Events & Saved Bookmarks:** Genuine LPU campus venues, event creation sheet, RSVP phone alerts, and synchronized Room + Firestore **Saved Events** counter and filtered view (also linked from Profile).
+6. **College-Independent Discussion Forums:** Per-university isolation across topic categories (`General`, `Events`, `Placements`, `PG & Rooms`, `Academics`, `Campus Life`), merging pre-loaded peer replies, Firestore streams, and local replies cleanly with Edit & Delete controls.
+7. **Rentals, Student Exchange & Lost & Found:** Full card + Detail View (`RentalDetailView`) with one-tap Dial/Copy/Email contact actions, `+ Add Listing`, and optional Location entry when posting in Lost & Found.
+8. **Helplines & Important Contacts Directory:** Categorized searchable campus Hospital, Women Safety & Anti-Ragging, Welfare/DSW, Hostel (`BH-1..7`, `BS-11..13`, `GH-1..7`, `GS-12`), and National Emergency helplines (`ImportantContactsScreen.kt`).
+9. **In-App Permissions & System Notifications:** Dedicated Android `NotificationChannel` (`PeersNotificationHelper.kt`) and in-app runtime permission prompts in Settings & Profile Camera for Camera, Location, and Notifications.
+10. **Project Documentation & Viva Reference:** Root `README.md` (with zero committed secrets) and `PEERS_Viva_Presentation_Points.txt` (58 comprehensive technical & feature points).

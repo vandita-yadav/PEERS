@@ -175,7 +175,7 @@ class ForumRepository(
                     "university" to post.university,
                     "upvotedBy" to emptyList<String>(),
                     "upvoteCount" to post.upvoteCount,
-                    "commentCount" to 1,
+                    "commentCount" to maxOf(1, post.commentCount + 1),
                     "createdAt" to FieldValue.serverTimestamp(),
                 )
             ).await()

@@ -172,10 +172,13 @@ fun BudgetPlannerScreen(
                 contentPadding = PaddingValues(
                     start = 20.dp,
                     end = 20.dp,
-                    top = innerPadding.calculateTopPadding() + 4.dp,
+                    top = 8.dp,
                     bottom = innerPadding.calculateBottomPadding() + 120.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
             ) {
                 item {
                     MonthSwitcher(

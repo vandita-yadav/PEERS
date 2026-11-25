@@ -191,7 +191,7 @@ fun EventsScreen(
             OrganizerFilterRow(
                 selected = state.selectedOrganizer,
                 showSavedOnly = state.showSavedOnly,
-                savedCount = state.savedEventIds.size,
+                savedCount = state.savedCount,
                 onSelected = {
                     viewModel.setSavedOnly(false)
                     viewModel.onOrganizerSelected(it)

@@ -15,9 +15,11 @@ import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -148,76 +150,88 @@ fun PeersSubScreenHeader(
     modifier: Modifier = Modifier,
     trailingAction: (@Composable () -> Unit)? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        shadowElevation = 2.dp,
+        modifier = modifier.fillMaxWidth(),
     ) {
-        IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 4.dp),
-        ) {
-            Text(
-                text = title,
-                fontFamily = GoogleSans,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = subtitle,
-                    fontFamily = Lato,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-
-        trailingAction?.invoke()
-
-        PeersAvatarBadge(
-            avatarIndex = user?.avatarIndex,
-            photoUrl = user?.photoUrl,
-            size = 38.dp,
-            borderWidth = 2.dp,
-            borderColor = PeersPrimaryIndigo.copy(alpha = 0.5f),
-            modifier = Modifier
-                .padding(start = 4.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onProfileClick)
-        )
-
-        BadgedBox(
-            badge = {
-                if (unreadCount > 0) {
-                    Badge(containerColor = PeersPrimaryIndigo) { Text("$unreadCount") }
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
                 }
-            },
-            modifier = Modifier.padding(start = 2.dp),
-        ) {
-            IconButton(onClick = onBellClick, modifier = Modifier.size(40.dp)) {
-                PeersDrawableIcon(
-                    lightRes = R.drawable.notification_black,
-                    darkRes = R.drawable.notification_white,
-                    contentDescription = "Notifications",
-                    size = 22.dp,
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 4.dp),
+                ) {
+                    Text(
+                        text = title,
+                        fontFamily = GoogleSans,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (subtitle.isNotBlank()) {
+                        Text(
+                            text = subtitle,
+                            fontFamily = Lato,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+
+                trailingAction?.invoke()
+
+                PeersAvatarBadge(
+                    avatarIndex = user?.avatarIndex,
+                    photoUrl = user?.photoUrl,
+                    size = 38.dp,
+                    borderWidth = 2.dp,
+                    borderColor = PeersPrimaryIndigo.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onProfileClick)
                 )
+
+                BadgedBox(
+                    badge = {
+                        if (unreadCount > 0) {
+                            Badge(containerColor = PeersPrimaryIndigo) { Text("$unreadCount") }
+                        }
+                    },
+                    modifier = Modifier.padding(start = 2.dp),
+                ) {
+                    IconButton(onClick = onBellClick, modifier = Modifier.size(40.dp)) {
+                        PeersDrawableIcon(
+                            lightRes = R.drawable.notification_black,
+                            darkRes = R.drawable.notification_white,
+                            contentDescription = "Notifications",
+                            size = 22.dp,
+                        )
+                    }
+                }
             }
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+            )
         }
     }
 }

@@ -270,9 +270,10 @@ class ForumViewModel @JvmOverloads constructor(
         runCatching {
             commentsListener = repository.observeComments(postId) { remote ->
                 val del = getDeletedIds()
-                val base = (if (remote.isEmpty()) demoComments else remote).filter { it.id !in del }
+                // Always keep pre-loaded peer replies merged with Firestore & local replies
+                // so adding a new reply never hides existing replies from other students.
+                val base = (demoComments + remote).filter { it.id !in del }
                 val loc = loadLocalComments(postId).filter { it.id !in del }
-                // Local overrides remote with same id so optimistic edits persist
                 _comments.value = (loc + base).distinctBy { it.id }.sortedBy { it.createdAt }
             }
         }
@@ -369,6 +370,7 @@ class ForumViewModel @JvmOverloads constructor(
     private fun updatePostInState(updated: ForumPost) {
         _allPosts.value = _allPosts.value.map { if (it.id == updated.id) updated else it }
         localPosts = localPosts.map { if (it.id == updated.id) updated else it }
+        remotePosts = remotePosts.map { if (it.id == updated.id) updated else it }
         saveLocalPosts(localPosts)
     }
 

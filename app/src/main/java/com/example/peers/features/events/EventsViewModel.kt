@@ -22,6 +22,7 @@ data class EventsUiState(
     val events: List<CommunityEvent> = emptyList(),
     val myAttendance: Set<String> = emptySet(),
     val savedEventIds: Set<String> = emptySet(),
+    val savedCount: Int = 0,
     val selectedDate: LocalDate? = null,
     val selectedOrganizer: EventOrganizerType? = null,
     val showSavedOnly: Boolean = false,
@@ -93,6 +94,7 @@ class EventsViewModel @JvmOverloads constructor(
     private val _rawEvents = MutableStateFlow<List<CommunityEvent>>(emptyList())
     private val _myAttendance = MutableStateFlow<Set<String>>(emptySet())
     private val _savedEventIds = MutableStateFlow<Set<String>>(emptySet())
+    private val _cachedSavedEntities = MutableStateFlow<List<SavedEventCacheEntity>>(emptyList())
     private val _selectedDate = MutableStateFlow<LocalDate?>(null)
     private val _selectedOrganizer = MutableStateFlow<EventOrganizerType?>(null)
     private val _showSavedOnly = MutableStateFlow(false)
@@ -131,7 +133,10 @@ class EventsViewModel @JvmOverloads constructor(
         }
 
         viewModelScope.launch {
-            cache.observeSavedEventIds().collect { _savedEventIds.value = it }
+            cache.observeSavedEvents().collect { savedRows ->
+                _cachedSavedEntities.value = savedRows
+                _savedEventIds.value = savedRows.map { it.eventId }.toSet()
+            }
         }
         remoteSavedEventsListener = cache.observeRemoteSavedEvents { remote ->
             viewModelScope.launch { cache.hydrateSavedEvents(remote) }
@@ -156,20 +161,60 @@ class EventsViewModel @JvmOverloads constructor(
         Quad(viewing, attendees, isCreating, loading)
     }
 
-    val uiState: StateFlow<EventsUiState> = combine(
+    private val coreEventsState = combine(
         _rawEvents,
         _myAttendance,
         _savedEventIds,
+        _cachedSavedEntities,
+    ) { raw, attendance, savedIds, savedEntities ->
+        val reconstructed = savedEntities
+            .filter { cached -> raw.none { it.id == cached.eventId } && cached.title.isNotBlank() }
+            .map { cached ->
+                val localDate = runCatching { LocalDate.ofEpochDay(cached.epochDay) }
+                    .getOrDefault(LocalDate.now())
+                val parts = cached.time.split(":")
+                val hour = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 10
+                val minute = parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+                val millis = localDate.atTime(hour, minute)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+                val cityPart = cached.location.substringAfterLast(",", "").trim().ifBlank { "Phagwara" }
+                val venuePart = cached.location.substringBeforeLast(",").trim().ifBlank { cached.location }
+                CommunityEvent(
+                    id = cached.eventId,
+                    title = cached.title,
+                    description = "Saved campus or community event.",
+                    organizerName = cached.organizer.ifBlank { "PEERS Community" },
+                    organizerType = EventOrganizerType.COMMUNITY,
+                    venue = venuePart,
+                    city = cityPart,
+                    startMillis = millis,
+                    emoji = "",
+                    capacity = maxOf(50, cached.attendees + 10),
+                    attendeeCount = cached.attendees,
+                    createdBy = "",
+                    createdAt = cached.savedAt,
+                )
+            }
+        val knownEvents = (raw + reconstructed).distinctBy { it.id }
+        Triple(knownEvents, attendance, savedIds)
+    }
+
+    val uiState: StateFlow<EventsUiState> = combine(
+        coreEventsState,
         filterState,
         viewState,
-    ) { raw, attendance, savedIds, filter, view ->
+    ) { core, filter, view ->
+        val (knownEvents, attendance, savedIds) = core
         val (date, organizer, savedOnly, query) = filter
         val (viewing, attendees, isCreating, loading) = view
 
-        val filtered = raw.filter { event ->
+        val exactSavedCount = knownEvents.count { it.id in savedIds }
+        val filtered = knownEvents.filter { event ->
             val matchesSaved = !savedOnly || event.id in savedIds
-            val matchesDate = date == null || event.date == date
-            val matchesOrganizer = organizer == null || event.organizerType == organizer
+            val matchesDate = savedOnly || date == null || event.date == date
+            val matchesOrganizer = savedOnly || organizer == null || event.organizerType == organizer
             val matchesQuery = query.isBlank() ||
                 event.title.contains(query, ignoreCase = true) ||
                 event.description.contains(query, ignoreCase = true) ||
@@ -182,6 +227,7 @@ class EventsViewModel @JvmOverloads constructor(
             events = filtered,
             myAttendance = attendance,
             savedEventIds = savedIds,
+            savedCount = exactSavedCount,
             selectedDate = date,
             selectedOrganizer = organizer,
             showSavedOnly = savedOnly,
@@ -199,14 +245,21 @@ class EventsViewModel @JvmOverloads constructor(
 
     fun onDateSelected(date: LocalDate?) {
         _selectedDate.value = date
+        if (date != null) _showSavedOnly.value = false
     }
 
     fun onOrganizerSelected(type: EventOrganizerType?) {
         _selectedOrganizer.value = type
+        if (type != null) _showSavedOnly.value = false
     }
 
     fun setSavedOnly(savedOnly: Boolean) {
         _showSavedOnly.value = savedOnly
+        if (savedOnly) {
+            _selectedDate.value = null
+            _selectedOrganizer.value = null
+            _query.value = ""
+        }
     }
 
     fun onQueryChange(newQuery: String) {

@@ -1,0 +1,184 @@
+PEERS ANDROID APP — VIVA PRESENTATION MASTER NOTES (58 POINTS)
+Version: 1.2.6 | Package: com.example.peers | Platform: Android (Kotlin + Jetpack Compose)
+
+========================================================================
+SECTION A: ARCHITECTURE, TECH STACK & CORE ENGINEERING (POINTS 1–28)
+========================================================================
+
+1. Project Identity & Purpose:
+   PEERS ("Peers Empower Each Other, Rise Together") is a comprehensive Android companion application built to unify accommodation search, transport/rentals, item exchange, college-scoped peer discussions, campus events, arrival checklists, expense budgeting, emergency helplines, and AI-guided advice into one student-centric app.
+
+2. Modern 100% Kotlin + Jetpack Compose UI:
+   Every screen in PEERS is constructed declaratively in Kotlin using Jetpack Compose (Compose BOM 2026.02.01) and Material Design 3 components, eliminating legacy XML view hierarchies for layouts.
+
+3. MVVM Architectural Pattern:
+   The application follows Model-View-ViewModel (MVVM) per feature module (Auth, ProfileSetup, Dashboard, Accommodation, Events, Forum, Checklist, Budget, Assistant), keeping composables stateless where possible and isolating business logic inside ViewModel/AndroidViewModel classes.
+
+4. Reactive State Management with Kotlin Flows:
+   UI state is exposed cleanly from ViewModels using immutable StateFlow<T> collected lifecycle-safely via collectAsStateWithLifecycle(), while transient snackbar/toast events use SharedFlow<T>.
+
+5. Modular Feature-First Package Organization:
+   Instead of grouping all screens together, source code is cleanly partitioned into 16 domain packages under com.example.peers.features.* (auth, onboarding, profile, dashboard, accommodation, events, forum, rentals, contacts, assistant, checklist, budget, offline, notifications, settings, community).
+
+6. Edge-to-Edge UI & WindowInsets Management:
+   MainActivity enables edge-to-edge rendering while carefully applying WindowInsets.safeDrawing on the outer Dashboard Scaffold and setting WindowInsets(0, 0, 0, 0) on nested child Scaffolds to prevent double top/bottom padding and clipping behind Android system navigation and notification bars.
+
+7. Unified Header System (PeersHeader vs PeersSubScreenHeader):
+   Dashboard Home exclusively renders PeersHeader (greeting, student name, university, drawer menu toggle, profile avatar, and notification bell), whereas all inner sub-screens share a solid, opaque, fixed top PeersSubScreenHeader with Back navigation, Screen Title/Subtitle, Profile shortcut, and unread Notification badge.
+
+8. Adaptive Dual Theme Engine with Google Sans & Lato:
+   Supports Light, Dark, and System Default modes persisted locally via ThemePreferences, applying custom Material 3 color schemes (PeersPrimaryIndigo, PeersLavender, PeersSky, PeersMint, PeersWarmYellow) paired with custom Google Sans (headings/buttons) and Lato (body copy) font families.
+
+9. Dual Authentication Architecture (Google OAuth + Manual Auth):
+   AuthViewModel handles both passwordless Google Sign-In using AndroidX Credentials API (1.3.0) + GoogleIdServices (1.1.1) and manual email/password Firebase Authentication, enforcing clean separation between Sign-Up and Log-In user journeys.
+
+10. Credential Security & Zero Hardcoded Secrets:
+    Sensitive keys (WEB_CLIENT_ID, MAPS_API_KEY, GEMINI_API_KEY) are read dynamically from untracked local.properties inside app/build.gradle.kts and injected into BuildConfig and manifestPlaceholders, never committed to source control.
+
+11. Offline-First Persistence with Room Database (2.8.5 + KSP):
+    PEERS uses three Room SQLite databases (OfflineCacheDatabase, BudgetDatabase, ChecklistDatabase) compiled via Kotlin Symbol Processing (KSP) so critical workflows—Budget Planner, Arrival Checklist, Wishlist, Notifications, and Saved Events—work instantaneously even offline.
+
+12. Optimistic UI Updates with Background Sync Queue:
+    OfflineCacheRepository stores pendingSync and pendingDelete flags inside Room entities, updates UI immediately on user clicks (saves, wishlists, notification reads), and pushes queued writes automatically using a ConnectivityManager.NetworkCallback when internet returns.
+
+13. Cloud Firestore Real-Time Listeners & Transactions:
+    Live campus feeds (forumPosts, comments subcollections, events, accommodationListings, user profiles) rely on Firestore addSnapshotListener streams and atomic runTransaction operations for consistent upvote/attendee counting.
+
+14. Client-Side Fallback Persistence Layer:
+    Alongside Firestore, user-created events, forum posts/comments, rental/exchange/lost-&-found listings, and notification channel toggles also persist in structured JSON inside app SharedPreferences so data stays reliable even if offline or under strict Firestore rules.
+
+15. Complete Account Lifecycle & Permanent Deletion:
+    Settings includes "Delete Account Permanently" handled by AuthViewModel.deleteAccount(), which removes the Firestore user document, deletes the Firebase Auth credential (re-authenticating via Google Credential Manager when required), and clears local SharedPreferences caches before returning to onboarding.
+
+16. Real Android NotificationChannel & System Notifications:
+    PeersNotificationHelper creates a dedicated notification channel ("PEERS Campus Updates") and dispatches real Android phone notifications via NotificationCompat + NotificationManagerCompat (e.g., RSVP confirmations and unread remote alerts), respecting user channel switches in Settings.
+
+17. In-App Runtime Permission Handling (Android 6–14+):
+    Rather than dumping users straight into Android system settings, Camera, Location, and Android 13+ POST_NOTIFICATIONS runtime permissions are requested cleanly in-app using ActivityResultContracts.RequestPermission, falling back to an explanatory dialog only if permanently denied.
+
+18. Camera Capture with FileProvider & EXIF Rotation Correction:
+    Profile photo capture creates a secure content:// URI via androidx.core.content.FileProvider, launches ActivityResultContracts.TakePicture, and reads ExifInterface orientation metadata so captured portraits never display rotated.
+
+19. Custom Vector & Dual-Theme Asset Rendering:
+    SVG illustrations are loaded smoothly with Coil + coil-svg (2.7.0), while UI icons switch automatically between light/dark vector drawables through PeersDrawableIcon helper utilities, maintaining crisp vector aesthetics without relying on OS emojis.
+
+20. Custom Built-In Image Crop Editor & Avatar System:
+    Users choosing a gallery/camera photo can crop interactively via ImageCropEditor, or choose from 13 custom-drawn vector PEERS avatars (PeersAvatars.kt) rendered seamlessly across Dashboard, Profile, Settings, Drawer, and Headers.
+
+21. Gemini AI REST Client with Resilient Model Fallback:
+    AssistantRepository communicates over HTTPS directly with Google's generativelanguage.googleapis.com REST API using BuildConfig.GEMINI_API_KEY, iterating across a prioritized list of Gemini Flash models with an intelligent local fallback knowledge base if offline or rate-limited.
+
+22. Google Maps SDK Integration:
+    Play Services Maps (19.0.0) renders campus accommodation surroundings cleanly using the manifest-configured MAPS_API_KEY placeholder.
+
+23. Hardware Back-Press & Safe Navigation Stack:
+    Every overlay screen and modal integrates androidx.activity.compose.BackHandler to unwind overlays -> Drawer -> Home tab smoothly, plus a 2-second double-back confirmation on Dashboard Home so the app never exits accidentally on a single tap.
+
+24. Android Packaging & Performance Optimization:
+    Enabled dex.useLegacyPackaging and avoided bloated transitive packages, producing a compact ~34 MB debug APK targeting Android 8.0+ (minSdk 26, targetSdk 34, compileSdk 37).
+
+25. Input Validation & Security Hygiene:
+    Manual authentication validates standard email formats and enforces strong password constraints (6+ chars, uppercase, lowercase, digit, special character), while forum/stay inputs trim whitespace and reject blank submissions.
+
+26. Reactive Multi-Source Feed Combining:
+    Modules like EventsViewModel and ForumViewModel use Kotlin combine() operators to merge demo seed data, local created items, Room cached entities, and real-time Firestore streams deterministically via distinctBy { it.id }.
+
+27. One-Tap Native Android System Intents:
+    Helplines, Accommodation Contacts, and Rentals Details trigger native system dials (Intent.ACTION_DIAL), email composers (Intent.ACTION_SENDTO), share sheets (Intent.ACTION_SEND), Play Store deep links, and ClipboardManager copy actions with toast feedback.
+
+28. BuildConfig & Gradle Kotlin DSL Configuration:
+    Dependencies and SDK plugins (AGP 9.3.3, Kotlin 2.2.10, Room 2.8.5, KSP 2.2.10-2.0.2) are centrally managed via Gradle Version Catalog (gradle/libs.versions.toml) and app/build.gradle.kts.
+
+========================================================================
+SECTION B: FEATURE-BY-FEATURE FUNCTIONAL COVERAGE (POINTS 29–58)
+========================================================================
+
+29. Branded Splash & Floating Onboarding Carousel:
+    1.5-second mascot splash screen transitions to a Welcome screen with floating illustrated carousel cards, page indicator dots, top-right dark-mode toggle, Sign Up, and Login bottom sheet triggers.
+
+30. Google & Manual Login/SignUp Bottom Sheets:
+    Tapping Sign Up or Login slides up a clean modal sheet letting users choose Google OAuth or manual email/password forms, displaying duplicate-account guidance if an existing user attempts Sign Up.
+
+31. Cascading Country -> State -> City -> University Onboarding:
+    Selecting Current Country dynamically updates the State dropdown (e.g., Punjab, Uttar Pradesh, Karnataka, Maharashtra, Ontario, UK regions), which filters Cities, which then prioritizes universities from that specific country only.
+
+32. Degree Duration Mapping & Auto Graduation Calculator:
+    Choosing a degree (B.Tech, B.E., B.A. LL.B, B.Sc, BBA, MBA, MCA, etc.) maps its official duration (3, 4, or 5 years), dynamically loads domain/specialization options, and calculates Expected Graduation Year and Year of Study from Commencing Month & Year.
+
+33. International Phone Dial Code Selector:
+    Supports global student phone numbers with an interactive country dial-code dropdown (+91, +1, +44, +61, +971, etc.) paired with digit formatting.
+
+34. Personalized Interests & Immediate Needs Profiling:
+    Steps 3 & 4 of onboarding capture student interests and arrival needs (Housing, Roommates, Part-time Guidance, Mental Wellness, Language Prep), feeding personalized recommendations across the Dashboard and Checklist.
+
+35. Dashboard Home Hero, Mini Calendar & Quick Discovery:
+    Displays live student context, a weekly interactive date strip highlighting upcoming event days, elevated shadow-card Discovery tiles (without harsh borders), and upcoming campus event preview cards with instant Bookmarking.
+
+36. Slide-Out Navigation Drawer:
+    Provides instant cross-module navigation (Profile, Notifications, Accommodation, Rentals & Transport, Helplines & Contacts, Events, Budget Planner, Student Checklist, AI Guide, Invite Friends, Settings, Rate Us, Dark Mode toggle, and Sign Out).
+
+37. Curated Off-Campus Accommodation Finder:
+    Showcases verified PGs, studio rooms, and apartments near LPU/Phagwara/Law Gate/Meheru/Chaheru (Green Valley Apartments, Sardar Apartments, Five 50 Apartments, Divjot Paying Guest, GTK Studio Apartments, Jagan Stay, Yours Space Boys Hostel) with distance badges, rent pills, and ratings.
+
+38. Multi-Criteria Filter Sheet with Explicit Save Filters:
+    FilterSheet lets students adjust max monthly rent slider, campus distance slider, property types, gender preferences, furnishing, immediate availability, and amenities, pinned cleanly above a dedicated "Save Filters" CTA button.
+
+39. Add Accommodation Listing Screen:
+    Allows students or landlords to publish verified PGs/flats with rent, distance, amenities, furnishing, and landlord contact info directly to the feed.
+
+40. Accommodation Detail View, Peer Reviews & Roommate Finder:
+    Inside a stay detail sheet, students can bookmark to Wishlist, verify genuineness ("Verified by N students"), read/write/edit/delete their own reviews, report spam, contact managers, or browse & send Roommate Requests.
+
+41. Campus & City Events with Real LPU Venues:
+    Pre-populated and event-creation quick selectors include real LPU landmarks (Shanti Devi Mittal Auditorium Block 35, Baldev Raj Mittal UniPolis, Amphitheatre, Indoor Sports Complex, LPU Unimall, Block 13 DSW, and Academic Blocks 25–38).
+
+42. Saved Events Bookmarking & Profile Integration:
+    Bookmarking any event persists in Room + Firestore; the Events tab exposes a dedicated "Saved (N)" chip that resets conflicting date/organizer filters and displays exact matching saved events, also accessible straight from Profile -> Saved Events.
+
+43. One-Tap Event RSVP & System Alerts:
+    RSVPing updates attendee capacity counters, registers attendee presence on Firestore, displays attendee avatars in EventDetailsSheet, and dispatches an Android notification reminder.
+
+44. College-Independent Discussion Forums:
+    Each enrolled college maintains an independent forum namespace filtered dynamically by active user university, preventing cross-campus clutter while allowing topic switching across General, Events, Placements, PG & Rooms, Academics, and Campus Life.
+
+45. Stateful Discussion Threads & Peer Replies Preservation:
+    Opening any discussion loads pre-populated student replies alongside Firestore real-time comments and local optimistic replies without overwriting or hiding existing responses when a user posts a new reply.
+
+46. Author Edit & Delete Controls on Forum & Reviews:
+    Discussion authors can edit titles/bodies or delete their posts and comments directly via confirmation dialogs, matching Edit/Delete capabilities on their own accommodation reviews.
+
+47. Rentals & Transport Marketplace:
+    Covers Bike & Scooty Rentals, Hybrid Cycles, Airport/Railway Cab Pooling & Shuttles, Student Exchange, and Lost & Found inside a unified filterable interface with direct "Ask PEERS AI" integration.
+
+48. Student Exchange Board:
+    Enables students to swap, pass on, or buy essentials like electric kettles, lamps, formal placement blazers, textbooks, and lab coats directly from graduating seniors and peers.
+
+49. Lost & Found Tab with Flexible Location Entry:
+    Dedicated Lost & Found feed allows publishing lost or found articles via the `+ Add Listing` sheet with Location marked optional—recognizing that lost/found posts may apply generally or lack an exact pinpoint location.
+
+50. Listing Detail Screen & Direct Poster Contact:
+    Tapping any card or "View Details" opens RentalDetailView displaying full item metadata, poster avatar & name, pickup/dropoff notes (when provided), and direct Call, Copy Phone, and Email actions.
+
+51. Helplines & Important Contacts Directory:
+    Centralizes campus emergency infrastructure across 5 filterable tabs (Hospital, Safety & Women, Welfare & DSW, Hostels, National) covering University Hospital wards/doctors, Women Help Center, Fire & Anti-Ragging Squads, Counseling Block 8, all Boys/Girls Hostels, and National helplines (`112`, `108`, `1091`, `1800-180-5522`).
+
+52. Gemini-Backed Conversational PEERS AI Guide:
+    Accepts natural student queries, uses tailored system instructions constrained strictly to campus/PEERS support without robotic 10-bullet walls, and renders tappable navigation action buttons alongside copyable messages.
+
+53. Personalized Arrival & Campus Checklist:
+    Auto-generates categorized preparation tasks (Visa/Docs, Housing, Banking, Health, Academics) based on the student's onboarding country/profile while supporting custom tasks, priority filtering, completion percentage ring, and regeneration.
+
+54. Monthly Budget & Cost of Living Planner:
+    Tracks monthly budget cap vs. total spent across categorized expense entries (Rent, Food, Travel, Utilities, Books, etc.) with Month Switcher, interactive expense editor, spending alert thresholds, and clear-month reset.
+
+55. Dedicated Profile Screen & Statistics Hub:
+    Displays banner gradient header, vector avatar or photo, academic metadata tags (Degree, Domain, Expected Graduation, Campus/City), interests, needs, languages, and live clickable Saved Events statistic.
+
+56. Live Edit Profile Synchronization:
+    Updating name, university, degree, city, state, phone dial code, interests, or avatar/photo in EditProfileScreen updates Firestore and immediately reflects across Dashboard Header, Drawer, Profile, and Settings via snapshot listeners.
+
+57. Granular Notifications Center & Unread Counters:
+    NotificationsScreen groups alerts chronologically ("Today", "Yesterday", date labels), differentiates connection requests vs. campus announcements, allows one-tap "Mark all read", and keeps unread badges synced on Dashboard & sub-screen headers.
+
+58. Privacy, In-App Permissions & Clean Settings UX:
+    Settings consolidates Light/Dark/System appearance switching, per-category notification toggles, live Camera/Location/Notification permission badges with in-app request dialogs, Invite Peer sharing sheet, Sign Out, and irreversible Delete Account safety flow.

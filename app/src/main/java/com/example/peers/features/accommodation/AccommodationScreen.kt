@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -565,7 +567,7 @@ private fun FilterSheet(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 22.dp)
-            .padding(bottom = 28.dp),
+            .padding(bottom = 24.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -582,102 +584,110 @@ private fun FilterSheet(
             }) { Text("Reset", color = PeersPrimaryIndigo) }
         }
 
-        FilterLabel("Maximum rent")
-        Text(
-            "₹${maxRent.roundToInt()} / month",
-            style = MaterialTheme.typography.bodyMedium,
-            color = PeersPrimaryIndigo,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Slider(
-            value = maxRent,
-            onValueChange = { maxRent = it },
-            valueRange = 2000f..30000f,
-            steps = 27,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            FilterLabel("Maximum rent")
+            Text(
+                "₹${maxRent.roundToInt()} / month",
+                style = MaterialTheme.typography.bodyMedium,
+                color = PeersPrimaryIndigo,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Slider(
+                value = maxRent,
+                onValueChange = { maxRent = it },
+                valueRange = 2000f..30000f,
+                steps = 27,
+            )
 
-        FilterLabel("Distance from campus")
-        Text(
-            "Within ${"%.1f".format(maxDistance)} km",
-            style = MaterialTheme.typography.bodyMedium,
-            color = PeersPrimaryIndigo,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Slider(
-            value = maxDistance,
-            onValueChange = { maxDistance = it },
-            valueRange = 0.5f..10f,
-        )
+            FilterLabel("Distance from campus")
+            Text(
+                "Within ${"%.1f".format(maxDistance)} km",
+                style = MaterialTheme.typography.bodyMedium,
+                color = PeersPrimaryIndigo,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Slider(
+                value = maxDistance,
+                onValueChange = { maxDistance = it },
+                valueRange = 0.5f..10f,
+            )
 
-        FilterLabel("Property type")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(accommodationTypes) { type ->
-                FilterChip(
-                    selected = type in draft.types,
-                    onClick = {
-                        draft = draft.copy(
-                            types = if (type in draft.types) draft.types - type else draft.types + type
-                        )
-                    },
-                    label = { Text(type) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Property type")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(accommodationTypes) { type ->
+                    FilterChip(
+                        selected = type in draft.types,
+                        onClick = {
+                            draft = draft.copy(
+                                types = if (type in draft.types) draft.types - type else draft.types + type
+                            )
+                        },
+                        label = { Text(type) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Gender preference")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(genderOptions) { gender ->
-                FilterChip(
-                    selected = draft.gender == gender,
-                    onClick = { draft = draft.copy(gender = if (draft.gender == gender) null else gender) },
-                    label = { Text(gender) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Gender preference")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(genderOptions) { gender ->
+                    FilterChip(
+                        selected = draft.gender == gender,
+                        onClick = { draft = draft.copy(gender = if (draft.gender == gender) null else gender) },
+                        label = { Text(gender) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Furnishing")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(furnishingOptions) { option ->
-                FilterChip(
-                    selected = draft.furnishing == option,
-                    onClick = {
-                        draft = draft.copy(furnishing = if (draft.furnishing == option) null else option)
-                    },
-                    label = { Text(option) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Furnishing")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(furnishingOptions) { option ->
+                    FilterChip(
+                        selected = draft.furnishing == option,
+                        onClick = {
+                            draft = draft.copy(furnishing = if (draft.furnishing == option) null else option)
+                        },
+                        label = { Text(option) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Availability")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                FilterChip(
-                    selected = draft.availableNow,
-                    onClick = { draft = draft.copy(availableNow = !draft.availableNow) },
-                    label = { Text("Available now") },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Availability")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    FilterChip(
+                        selected = draft.availableNow,
+                        onClick = { draft = draft.copy(availableNow = !draft.availableNow) },
+                        label = { Text("Available now") },
+                        colors = filterChipColors(),
+                    )
+                }
             }
-        }
 
-        FilterLabel("Amenities")
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(amenityOptions) { amenity ->
-                FilterChip(
-                    selected = amenity in draft.amenities,
-                    onClick = {
-                        draft = draft.copy(
-                            amenities = if (amenity in draft.amenities) draft.amenities - amenity
-                            else draft.amenities + amenity
-                        )
-                    },
-                    label = { Text(amenity) },
-                    colors = filterChipColors(),
-                )
+            FilterLabel("Amenities")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(amenityOptions) { amenity ->
+                    FilterChip(
+                        selected = amenity in draft.amenities,
+                        onClick = {
+                            draft = draft.copy(
+                                amenities = if (amenity in draft.amenities) draft.amenities - amenity
+                                else draft.amenities + amenity
+                            )
+                        },
+                        label = { Text(amenity) },
+                        colors = filterChipColors(),
+                    )
+                }
             }
+            Spacer(Modifier.height(16.dp))
         }
 
         Button(
@@ -693,10 +703,10 @@ private fun FilterSheet(
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 24.dp)
+                .padding(top = 12.dp)
                 .height(52.dp),
         ) {
-            Text("Show results", fontWeight = FontWeight.Bold)
+            Text("Save Filters", fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
