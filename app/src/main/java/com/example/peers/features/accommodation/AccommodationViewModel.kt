@@ -460,7 +460,7 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
                 cache.emitUnifiedNotification(
                     title = "New Roommate Request at ${listing.title}",
                     body = "$meName wants to share ${listing.title}: \"${message.trim()}\"",
-                    type = "connection_request",
+                    type = "roommate_request",
                     prefKey = "notif_room",
                     targetUid = targetOwner,
                 )
@@ -534,7 +534,7 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
             cache.emitUnifiedNotification(
                 title = "Roommate Request ${statusWord.replaceFirstChar { it.uppercase() }}",
                 body = "Roommate request with ${request.fromName} for ${request.listingTitle} was $statusWord.",
-                type = if (accept) "connection_accepted" else "info",
+                type = if (accept) "roommate_accepted" else "info",
                 prefKey = "notif_room",
             )
             val otherUid = request.fromUid.takeIf { it.isNotBlank() && it != currentUid && !it.startsWith("s") }
@@ -542,7 +542,7 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
                 cache.emitUnifiedNotification(
                     title = "Roommate Request ${statusWord.replaceFirstChar { it.uppercase() }}",
                     body = "$meName $statusWord your roommate request for ${request.listingTitle}!",
-                    type = if (accept) "connection_accepted" else "info",
+                    type = if (accept) "roommate_accepted" else "info",
                     prefKey = "notif_room",
                     targetUid = otherUid,
                 )

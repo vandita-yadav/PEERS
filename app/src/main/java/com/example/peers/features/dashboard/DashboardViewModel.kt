@@ -144,8 +144,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             timestampMillis = row.timestampMillis,
                             isUnread = row.isUnread,
                             type = when (row.type) {
-                                "connection_request" -> NotificationType.CONNECTION_REQUEST
-                                "connection_accepted" -> NotificationType.CONNECTION_ACCEPTED
+                                "roommate_request" -> NotificationType.ROOMMATE_REQUEST
+                                "roommate_accepted" -> NotificationType.ROOMMATE_ACCEPTED
                                 "request_sent" -> NotificationType.REQUEST_SENT
                                 "accommodation_enquiry" -> NotificationType.ACCOMMODATION_ENQUIRY
                                 else -> NotificationType.INFO
@@ -246,8 +246,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 remote.filter { it.isUnread && it.id !in seededNotifIds }.forEach { notif ->
                     seededNotifIds.add(notif.id)
                     val prefKey = when (notif.type.lowercase()) {
-                        "connection_request", "connection_accepted" -> "notif_conn"
-                        "roommate" -> "notif_room"
+                        "roommate", "roommate_request", "roommate_accepted", "accommodation_enquiry" -> "notif_room"
                         "forum" -> "notif_forum"
                         else -> "notif_events"
                     }

@@ -111,6 +111,7 @@ fun SettingsScreen(
     onOpenProfile: () -> Unit = {},
     unreadCount: Int = 0,
     onBellClick: () -> Unit = {},
+    onOpenAdmin: (() -> Unit)? = null,
     onDeleteAccount: (onError: (String) -> Unit) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -123,7 +124,6 @@ fun SettingsScreen(
     // Local notifications preference cache
     val prefs = remember { context.getSharedPreferences("peers_settings", Context.MODE_PRIVATE) }
     var masterNotifs by remember { mutableStateOf(prefs.getBoolean("notif_master", true)) }
-    var connNotifs by remember { mutableStateOf(prefs.getBoolean("notif_conn", true)) }
     var roomNotifs by remember { mutableStateOf(prefs.getBoolean("notif_room", true)) }
     var eventNotifs by remember { mutableStateOf(prefs.getBoolean("notif_events", true)) }
     var forumNotifs by remember { mutableStateOf(prefs.getBoolean("notif_forum", true)) }
@@ -344,12 +344,6 @@ fun SettingsScreen(
                     if (masterNotifs) {
                         HorizontalDivider(Modifier.padding(vertical = 12.dp))
                         NotificationToggleItem(
-                            title = "Connection Requests",
-                            subtitle = "When peers want to connect with you",
-                            checked = connNotifs,
-                            onToggle = { connNotifs = it; updateNotif("notif_conn", it) },
-                        )
-                        NotificationToggleItem(
                             title = "Roommate Requests",
                             subtitle = "Roommate matches and enquiries",
                             checked = roomNotifs,
@@ -429,6 +423,17 @@ fun SettingsScreen(
                     }
 
                     HorizontalDivider(Modifier.padding(vertical = 14.dp))
+
+                    if (onOpenAdmin != null) {
+                        Button(
+                            onClick = onOpenAdmin,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PeersPrimaryIndigo),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                        ) {
+                            Text("Open PEERS Admin Console", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
 
                     OutlinedButton(
                         onClick = onRequestSignOut,

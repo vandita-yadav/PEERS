@@ -365,7 +365,7 @@ features/
 
 ---
 
-## PART 10 — PRODUCTION IMPLEMENTATION SUMMARY (v1.2.5 – v1.2.7)
+## PART 10 — PRODUCTION IMPLEMENTATION SUMMARY (v1.2.5 – v1.2.8)
 
 The planned sections above alongside major platform upgrades have now been implemented across the codebase:
 
@@ -378,4 +378,5 @@ The planned sections above alongside major platform upgrades have now been imple
 7. **Rentals, Tickets, Digital Items, Exchange & Lost & Found:** Full card + Detail View (`RentalDetailView`), multi-photo gallery uploads, Edit/Delete/Mark Sold, `Interested (N)` counter with poster alerts, Tickets & Digital categories, and optional Location in Lost & Found.
 8. **Helplines & Important Contacts Directory + Enhanced PEERS AI Guide:** Categorized searchable campus Hospital, Safety, DSW, Hostel, and National helplines (`ImportantContactsScreen.kt`), linked from Dashboard "University Help", with full directory knowledge integrated into `AssistantRepository` and `StudyAbroadKnowledgeBase`.
 9. **In-App Permissions & Common System Notifications:** Dedicated Android `NotificationChannel` (`peers_student_alerts_v2`) using monochrome `ic_peers_notif` PEERS vector icon alongside Room/Firestore alerts (`emitUnifiedNotification`), plus in-app runtime permission prompts.
-10. **Project Documentation & Viva Reference:** Root `README.md` (with zero committed secrets) and `PEERS_Viva_Presentation_Points.txt` (58 comprehensive technical & feature points).
+10. **Role-Gated Admin Console & Peer Connection Cleanup:** Removed legacy peer-to-peer Connection Request flows while preserving Accommodation Roommate Requests (`roommate_request` / `roommate_accepted`), and added a role-gated Admin Console (`AdminConfig`, `AdminViewModel`, `AdminScreen`) for `van22pop576@gmail.com` and `tanyayadav2552005@gmail.com` featuring campus broadcasts, report moderation, listings/events oversight, co-admin management, and user directory controls.
+11. **Project Documentation & Viva Reference:** Root `README.md` (with zero committed secrets) and `PEERS_Viva_Presentation_Points.txt` (58 comprehensive technical & feature points).

@@ -40,11 +40,12 @@
 - **Unified Marketplace Categories:** *All*, *Bike & Scooty*, *Cycles*, *Cab & Shuttle*, *Student Exchange* (gadgets, appliances, textbooks, formal wear), and *Lost & Found*.
 - **Post Listings & Optional Location for Lost & Found:** Students can publish new items via `+ Add Listing` (allowing location to be left blank for lost/found items anywhere), inspect poster info and item details in `RentalDetailView`, and contact posters via one-tap Dial, Copy, or Email actions.
 
-### 8. Student Productivity, Safety & AI Tools
-- **PEERS AI Guide:** Gemini-powered conversational assistant (`generativelanguage.googleapis.com` REST with `gemini-3.5-flash` fallback chain + local study-abroad/campus knowledge base) offering deep-link action chips directly into relevant app screens.
+### 8. Student Productivity, Safety, AI Tools & Admin Console
+- **PEERS AI Guide:** Gemini-powered conversational assistant (`generativelanguage.googleapis.com` REST with `gemini-2.5-flash` / `gemini-3.5-flash` fallback chain + complete campus directory knowledge base) offering deep-link action chips directly into relevant app screens.
 - **Student Checklist:** Offline Room-backed arrival/visa/banking/academic checklist personalized to student metadata.
 - **Monthly Budget & Cost of Living Planner:** Offline Room-backed expense logger with monthly caps, category breakdowns, and spending summaries.
 - **Helplines & Important Contacts:** Searchable directory of University Hospital, Women Safety & Anti-Ragging Cells, Fire/Security, DSW Counseling, Campus Hostels (`BH-1..7`, `BS-11..13`, `GH-1..7`, `GS-12`), and National Emergency helplines (`112`, `108`, `1091`, `1800-180-5522`) with one-tap Dial and Copy.
+- **Role-Gated Admin Console (`AdminScreen`):** Dedicated administrative panel accessible exclusively to authorized admins (`van22pop576@gmail.com`, `tanyayadav2552005@gmail.com`, and dynamically added co-admins) for campus-wide alert broadcasts, moderation of reported discussions, accommodation/event/rental verification & cleanup, and user directory management.
 - **Settings, In-App Permissions & Account Deletion:** Light/Dark/System theme modes, notification channel preferences, in-app runtime permission prompts (Camera, Location, Phone Notifications), Sign Out, and **Delete Account Permanently** (removing Firebase Auth account, Firestore document, and local caches).
 
 ---

@@ -436,7 +436,7 @@ class OfflineCacheRepository private constructor(context: Context) {
         }
     }
 
-    /** A small demo seed so notifications are useful before the first server sync. */
+    /** Small demo seed so the notifications screen is immediately helpful. */
     private fun seedDemoNotifications() {
         scope.launch {
             if (dao.notificationRows().isNotEmpty()) return@launch
@@ -444,29 +444,19 @@ class OfflineCacheRepository private constructor(context: Context) {
             dao.upsertNotifications(
                 listOf(
                     NotificationCacheEntity(
-                        id = "demo-1",
-                        title = "Connection accepted",
-                        body = "Aisha Verma accepted your connection request.",
+                        id = "demo-event-welcome",
+                        title = "Upcoming Event: Freshers' Induction",
+                        body = "Freshers' Cultural Induction Night at Shanti Devi Mittal Auditorium (Block 35).",
                         emoji = "",
                         timestampMillis = now - 60_000,
                         isUnread = true,
-                        type = "connection_accepted",
+                        type = "info",
                         remoteBacked = false,
                     ),
                     NotificationCacheEntity(
-                        id = "demo-2",
-                        title = "New connection request",
-                        body = "Rohan Mehta wants to connect with you.",
-                        emoji = "",
-                        timestampMillis = now - 10 * 60_000,
-                        isUnread = true,
-                        type = "connection_request",
-                        remoteBacked = false,
-                    ),
-                    NotificationCacheEntity(
-                        id = "demo-3",
-                        title = "Event near you",
-                        body = "Freshers' Meetup starts in 2 days — 84 peers going.",
+                        id = "demo-forum-welcome",
+                        title = "New Replies in PG & Rooms",
+                        body = "Fellow students shared reviews for Law Gate & Simar Enclave stays.",
                         emoji = "",
                         timestampMillis = now - 26 * 60 * 60_000,
                         isUnread = false,
