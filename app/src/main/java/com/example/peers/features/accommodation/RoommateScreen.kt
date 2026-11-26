@@ -1,5 +1,8 @@
 package com.example.peers.features.accommodation
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,10 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -19,6 +24,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.MarkEmailRead
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material3.AlertDialog
@@ -35,8 +42,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,8 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,10 +72,15 @@ fun RoommateScreen(
     val seekers by viewModel.seekers.collectAsStateWithLifecycle()
     val requests by viewModel.roommateRequests.collectAsStateWithLifecycle()
 
+    BackHandler { onBack() }
+
     var tab by remember { mutableIntStateOf(0) }
     var contactRequest by remember { mutableStateOf<RoommateRequest?>(null) }
+    var selectedSeekerForRequest by remember { mutableStateOf<RoommateSeeker?>(null) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {
@@ -103,31 +117,95 @@ fun RoommateScreen(
             ) {
                 Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Find a roommate") })
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = {
-                    Text(
-                        if (requests.any { it.incoming && it.status == RoommateRequestStatus.PENDING }) {
-                            "Requests •"
-                        } else {
-                            "Requests"
-                        }
-                    )
+                    val pendingCount = requests.count { it.incoming && it.status == RoommateRequestStatus.PENDING }
+                    Text(if (pendingCount > 0) "Requests ($pendingCount)" else "Requests")
                 })
             }
 
-            if (tab == 0) {
-                SeekerList(
-                    seekers = seekers,
-                    onSend = { seeker ->
-                        viewModel.sendRoommateRequestToSeeker(seeker)
-                    },
-                )
-            } else {
-                RequestList(
-                    requests = requests,
-                    onRespond = viewModel::respondToRoommateRequest,
-                    onViewContact = { contactRequest = it },
-                )
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    viewModel.refreshAll { isRefreshing = false }
+                },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (tab == 0) {
+                    SeekerList(
+                        seekers = seekers,
+                        outgoingRequests = requests.filterNot { it.incoming },
+                        onSend = { seeker -> selectedSeekerForRequest = seeker },
+                        onCancel = { req -> viewModel.cancelRoommateRequest(req) },
+                    )
+                } else {
+                    RequestList(
+                        requests = requests,
+                        onRespond = viewModel::respondToRoommateRequest,
+                        onCancelOutgoing = viewModel::cancelRoommateRequest,
+                        onViewContact = { contactRequest = it },
+                    )
+                }
             }
         }
+    }
+
+    selectedSeekerForRequest?.let { seeker ->
+        var introMsg by remember(seeker.uid) {
+            mutableStateOf("Hi ${seeker.name}! I'm also looking for a roommate in ${seeker.area}.")
+        }
+        var phone by remember(seeker.uid) { mutableStateOf("") }
+        var email by remember(seeker.uid) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { selectedSeekerForRequest = null },
+            title = { Text("Connect with ${seeker.name}", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Area: ${seeker.area} · Budget ₹${"%,d".format(seeker.budget)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PeersPrimaryIndigo,
+                    )
+                    OutlinedTextField(
+                        value = introMsg,
+                        onValueChange = { introMsg = it },
+                        label = { Text("Message") },
+                        minLines = 2,
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        label = { Text("Your Phone (optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Your Email (optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.sendRoommateRequestToSeeker(
+                            seeker = seeker,
+                            message = introMsg,
+                            contact = ContactInfo(phone = phone, email = email),
+                        )
+                        selectedSeekerForRequest = null
+                    },
+                    enabled = introMsg.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = PeersPrimaryIndigo),
+                ) { Text("Send Request") }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedSeekerForRequest = null }) { Text("Cancel") }
+            },
+        )
     }
 
     contactRequest?.let { request ->
@@ -138,11 +216,14 @@ fun RoommateScreen(
 @Composable
 private fun SeekerList(
     seekers: List<RoommateSeeker>,
+    outgoingRequests: List<RoommateRequest>,
     onSend: (RoommateSeeker) -> Unit,
+    onCancel: (RoommateRequest) -> Unit,
 ) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxSize(),
     ) {
         item {
             Text(
@@ -151,20 +232,31 @@ private fun SeekerList(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "Send a request to introduce yourself. Contact details stay hidden until they accept.",
+                "Send a request to introduce yourself. You will both receive an in-app and phone notification.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
             )
         }
         items(seekers, key = { it.uid }) { seeker ->
-            SeekerCard(seeker = seeker, onSend = { onSend(seeker) })
+            val existing = outgoingRequests.firstOrNull { it.toUid == seeker.uid }
+            SeekerCard(
+                seeker = seeker,
+                existingRequest = existing,
+                onSend = { onSend(seeker) },
+                onCancel = { if (existing != null) onCancel(existing) },
+            )
         }
     }
 }
 
 @Composable
-private fun SeekerCard(seeker: RoommateSeeker, onSend: () -> Unit) {
+private fun SeekerCard(
+    seeker: RoommateSeeker,
+    existingRequest: RoommateRequest?,
+    onSend: () -> Unit,
+    onCancel: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -194,8 +286,6 @@ private fun SeekerCard(seeker: RoommateSeeker, onSend: () -> Unit) {
                         "${seeker.course} · ${seeker.year}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Text(
@@ -231,13 +321,38 @@ private fun SeekerCard(seeker: RoommateSeeker, onSend: () -> Unit) {
                 }
             }
 
-            OutlinedButton(
-                onClick = onSend,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            ) {
-                Icon(Icons.Rounded.PersonAdd, null, Modifier.size(18.dp))
-                Text("  Send roommate request")
+            when (existingRequest?.status) {
+                RoommateRequestStatus.PENDING -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                ) {
+                    StatusChip(RoommateRequestStatus.PENDING)
+                    Spacer(Modifier.weight(1f))
+                    OutlinedButton(
+                        onClick = onCancel,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Icon(Icons.Rounded.Close, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Withdraw")
+                    }
+                }
+                RoommateRequestStatus.ACCEPTED -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                ) {
+                    StatusChip(RoommateRequestStatus.ACCEPTED)
+                }
+                else -> Button(
+                    onClick = onSend,
+                    colors = ButtonDefaults.buttonColors(containerColor = PeersPrimaryIndigo),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                ) {
+                    Icon(Icons.Rounded.PersonAdd, null, Modifier.size(18.dp))
+                    Text("  Send roommate request", fontWeight = FontWeight.SemiBold, color = Color.White)
+                }
             }
         }
     }
@@ -247,6 +362,7 @@ private fun SeekerCard(seeker: RoommateSeeker, onSend: () -> Unit) {
 private fun RequestList(
     requests: List<RoommateRequest>,
     onRespond: (RoommateRequest, Boolean) -> Unit,
+    onCancelOutgoing: (RoommateRequest) -> Unit,
     onViewContact: (RoommateRequest) -> Unit,
 ) {
     val incoming = requests.filter { it.incoming }
@@ -255,6 +371,7 @@ private fun RequestList(
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxSize(),
     ) {
         item {
             Text(
@@ -286,7 +403,11 @@ private fun RequestList(
             item { EmptyRow("Requests you send will appear here.") }
         }
         items(outgoing, key = { it.id }) { request ->
-            OutgoingRequestCard(request)
+            OutgoingRequestCard(
+                request = request,
+                onCancel = { onCancelOutgoing(request) },
+                onViewContact = { onViewContact(request) },
+            )
         }
     }
 }
@@ -367,35 +488,66 @@ private fun IncomingRequestCard(
 }
 
 @Composable
-private fun OutgoingRequestCard(request: RoommateRequest) {
+private fun OutgoingRequestCard(
+    request: RoommateRequest,
+    onCancel: () -> Unit,
+    onViewContact: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(16.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     request.listingTitle.ifBlank { request.fromName },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                Text(
-                    request.message.ifBlank { "Roommate request sent" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                Spacer(Modifier.width(8.dp))
+                StatusChip(request.status)
             }
-            StatusChip(request.status)
+            Text(
+                request.message.ifBlank { "Roommate request sent" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            when (request.status) {
+                RoommateRequestStatus.PENDING -> Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Icon(Icons.Rounded.Close, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Withdraw Request")
+                    }
+                }
+                RoommateRequestStatus.ACCEPTED -> Button(
+                    onClick = onViewContact,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PeersPrimaryIndigo),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                ) {
+                    Icon(Icons.Rounded.Check, null, Modifier.size(16.dp))
+                    Text("  Accepted — View Contact")
+                }
+                RoommateRequestStatus.DECLINED -> Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                ) {
+                    TextButton(onClick = onCancel) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
         }
     }
 }
@@ -428,9 +580,9 @@ private fun EmptyRow(text: String) {
     )
 }
 
-/** "Here are ways you can connect" — only the contact details they agreed to share. */
 @Composable
 private fun ContactDialog(request: RoommateRequest, onDismiss: () -> Unit) {
+    val context = LocalContext.current
     val entries = request.contact.visibleEntries()
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -444,7 +596,7 @@ private fun ContactDialog(request: RoommateRequest, onDismiss: () -> Unit) {
                 )
                 if (entries.isEmpty()) {
                     Text(
-                        "They didn't share any contact details. Continue the conversation in your connection chat.",
+                        "They haven't listed a phone/email yet. You can check the listing card contact number.",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 10.dp),
                     )
@@ -454,7 +606,16 @@ private fun ContactDialog(request: RoommateRequest, onDismiss: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { }
+                                .clickable {
+                                    when (label) {
+                                        "Phone" -> runCatching {
+                                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${value.filter { it.isDigit() || it == '+' }}")))
+                                        }
+                                        "Email" -> runCatching {
+                                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$value")))
+                                        }
+                                    }
+                                }
                                 .padding(vertical = 8.dp),
                         ) {
                             Text(
@@ -467,6 +628,7 @@ private fun ContactDialog(request: RoommateRequest, onDismiss: () -> Unit) {
                                 value,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
+                                color = PeersPrimaryIndigo,
                             )
                         }
                     }

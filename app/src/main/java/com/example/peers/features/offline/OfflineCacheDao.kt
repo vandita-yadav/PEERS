@@ -61,6 +61,9 @@ interface OfflineCacheDao {
     @Query("UPDATE notification_cache SET pendingRead = 0 WHERE id IN (:ids)")
     suspend fun clearPendingRead(ids: List<String>)
 
+    @Query("UPDATE notification_cache SET resolvedState = :state, isUnread = 0 WHERE id = :id")
+    suspend fun updateNotificationResolved(id: String, state: String)
+
     // ── Saved events ─────────────────────────────────────────────────────────
 
     @Query("SELECT eventId FROM saved_event_cache WHERE pendingDelete = 0")

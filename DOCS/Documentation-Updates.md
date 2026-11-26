@@ -365,17 +365,17 @@ features/
 
 ---
 
-## PART 10 — PRODUCTION IMPLEMENTATION SUMMARY (v1.2.5 – v1.2.6)
+## PART 10 — PRODUCTION IMPLEMENTATION SUMMARY (v1.2.5 – v1.2.7)
 
 The planned sections above alongside major platform upgrades have now been implemented across the codebase:
 
 1. **Dual Authentication (Google OAuth + Manual Auth):** Credential Manager Google Sign-In alongside validated manual email/password sign-up & login flows, duplicate account protection, and **Delete Account Permanently** in Settings.
 2. **Cascading Academic Profile & Dial Codes:** `Country -> State -> City -> University` cascading pickers (prioritizing country-scoped universities), Degree-to-Duration mapping with Commencing Month/Year graduation calculator, Domain/Specialization, and international Phone dial-code selector.
-3. **Unified Fixed Headers & Edge-to-Edge Insets:** Solid, pinned `PeersSubScreenHeader` across inner screens (`Rentals & Transport`, `Helplines & Contacts`, `Accommodation`, `Events`, `Discussion`, `Budget`, `Checklist`, `Settings`, `Assistant`, `Notifications`), leaving `PeersHeader` exclusive to Dashboard Home.
-4. **Accommodation Finder:** Curated LPU/Phagwara/Law Gate/Meheru/Chaheru stays, scrollable filter sheet with explicit **Save Filters** button, `+ Add Listing`, peer verification, Edit/Delete own reviews, Wishlist sync, and Roommate requests.
-5. **Events & Saved Bookmarks:** Genuine LPU campus venues, event creation sheet, RSVP phone alerts, and synchronized Room + Firestore **Saved Events** counter and filtered view (also linked from Profile).
-6. **College-Independent Discussion Forums:** Per-university isolation across topic categories (`General`, `Events`, `Placements`, `PG & Rooms`, `Academics`, `Campus Life`), merging pre-loaded peer replies, Firestore streams, and local replies cleanly with Edit & Delete controls.
-7. **Rentals, Student Exchange & Lost & Found:** Full card + Detail View (`RentalDetailView`) with one-tap Dial/Copy/Email contact actions, `+ Add Listing`, and optional Location entry when posting in Lost & Found.
-8. **Helplines & Important Contacts Directory:** Categorized searchable campus Hospital, Women Safety & Anti-Ragging, Welfare/DSW, Hostel (`BH-1..7`, `BS-11..13`, `GH-1..7`, `GS-12`), and National Emergency helplines (`ImportantContactsScreen.kt`).
-9. **In-App Permissions & System Notifications:** Dedicated Android `NotificationChannel` (`PeersNotificationHelper.kt`) and in-app runtime permission prompts in Settings & Profile Camera for Camera, Location, and Notifications.
+3. **Unified Fixed Headers, Pull-to-Refresh & Edge-to-Edge Insets:** Solid, pinned `PeersSubScreenHeader` across inner screens and Material 3 `PullToRefreshBox` resync across Dashboard, Accommodation, Discussion, Events, Rentals, Roommates, and Notifications.
+4. **Accommodation Finder & Two-Way Enquiry Flow:** Curated LPU/Phagwara stays stacking cleanly with user-posted stays, Edit/Delete own listings, clickable phone dial, horizontal Review slider, scrollable filter sheet with explicit **Save Filters**, Roommate withdrawal/notifications, and **Enquire -> Mark Available / Unavailable** owner response notifications.
+5. **Events & Saved Bookmarks:** Genuine LPU campus venues, bottom-corner Create Event FAB, free-text Venue box, full-screen draft-safe Create/Edit Event form, Edit/Delete own events, RSVP + new event alerts, and synchronized Room + Firestore **Saved Events**.
+6. **College-Independent Discussion Forums:** Per-university topic isolation, upvote/downvote & quote-reply on comments, gallery image/GIF attachments on Firebase Free Tier, "Search discussion", and unified notifications for likes & replies.
+7. **Rentals, Tickets, Digital Items, Exchange & Lost & Found:** Full card + Detail View (`RentalDetailView`), multi-photo gallery uploads, Edit/Delete/Mark Sold, `Interested (N)` counter with poster alerts, Tickets & Digital categories, and optional Location in Lost & Found.
+8. **Helplines & Important Contacts Directory + Enhanced PEERS AI Guide:** Categorized searchable campus Hospital, Safety, DSW, Hostel, and National helplines (`ImportantContactsScreen.kt`), linked from Dashboard "University Help", with full directory knowledge integrated into `AssistantRepository` and `StudyAbroadKnowledgeBase`.
+9. **In-App Permissions & Common System Notifications:** Dedicated Android `NotificationChannel` (`peers_student_alerts_v2`) using monochrome `ic_peers_notif` PEERS vector icon alongside Room/Firestore alerts (`emitUnifiedNotification`), plus in-app runtime permission prompts.
 10. **Project Documentation & Viva Reference:** Root `README.md` (with zero committed secrets) and `PEERS_Viva_Presentation_Points.txt` (58 comprehensive technical & feature points).

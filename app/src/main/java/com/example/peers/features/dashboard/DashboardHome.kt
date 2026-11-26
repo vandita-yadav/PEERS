@@ -31,12 +31,14 @@ import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,6 +80,7 @@ private val homeDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("
  * - PEERS AI Student Guide Banner
  * - Discover What Interests You (with Discussion, Rentals & Transport, etc.; no People You May Know)
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardHome(
     viewModel: DashboardViewModel,
@@ -95,11 +98,20 @@ fun DashboardHome(
     val savedEventIds by viewModel.savedEventIds.collectAsStateWithLifecycle()
     val today = LocalDate.now()
     var selectedDate by remember { mutableStateOf(today) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
-    LazyColumn(
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            viewModel.refreshAll { isRefreshing = false }
+        },
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
     ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
         item { DateSlider(today, selectedDate, allEvents, onDateSelected = { selectedDate = it }) }
 
         item {
@@ -152,6 +164,7 @@ fun DashboardHome(
                 }
             )
         }
+    }
     }
 }
 
@@ -456,7 +469,7 @@ private val allDiscoverItems = listOf(
     ),
     DiscoverItem(
         R.drawable.info_black, R.drawable.info_white,
-        "University Help", "Campus guidance & Q&A", PeersSky, "assistant", "University Help"
+        "University Help", "Campus helplines & contacts", PeersSky, "contacts", "University Help"
     ),
     DiscoverItem(
         R.drawable.handshake_black, R.drawable.handshake_white,

@@ -1,6 +1,7 @@
 package com.example.peers.features.accommodation
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.peers.features.offline.OfflineCacheRepository
@@ -10,11 +11,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
 
 class AccommodationViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AccommodationRepository()
     private val cache = OfflineCacheRepository.get(application)
+    private val prefs = application.getSharedPreferences("peers_accom_local", Context.MODE_PRIVATE)
+    private val auth = FirebaseAuth.getInstance()
+
+    val currentUid: String get() = auth.currentUser?.uid.orEmpty()
 
     private val _listings = MutableStateFlow(demoListings)
     val listings: StateFlow<List<AccommodationListing>> = _listings.asStateFlow()
@@ -49,9 +55,85 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
     private var wishlistListener: ListenerRegistration? = null
     private var remoteRequests: List<RoommateRequest> = emptyList()
     private var localRequests: List<RoommateRequest> = emptyList()
+    private var cancelledRequestIds: Set<String> = emptySet()
     private var requestsListeners: List<ListenerRegistration> = emptyList()
 
+    private fun getDeletedListingIds(): Set<String> =
+        prefs.getStringSet("deleted_listing_ids", emptySet()) ?: emptySet()
+
+    private fun markListingDeleted(id: String) {
+        prefs.edit().putStringSet("deleted_listing_ids", getDeletedListingIds() + id).apply()
+    }
+
+    private fun loadLocalListings(): List<AccommodationListing> {
+        val raw = prefs.getString("user_listings", null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                val amArr = obj.optJSONArray("amenities") ?: JSONArray()
+                val phArr = obj.optJSONArray("photoUrls") ?: JSONArray()
+                AccommodationListing(
+                    id = obj.getString("id"),
+                    title = obj.getString("title"),
+                    type = obj.optString("type", "PG"),
+                    rentPerMonth = obj.optInt("rentPerMonth", 0),
+                    address = obj.optString("address", ""),
+                    distanceKm = obj.optDouble("distanceKm", 0.0),
+                    genderPreference = obj.optString("genderPreference", "Any"),
+                    furnishing = obj.optString("furnishing", "Furnished"),
+                    amenities = (0 until amArr.length()).map { amArr.getString(it) },
+                    availability = obj.optString("availability", "Available now"),
+                    photoUrls = (0 until phArr.length()).map { phArr.getString(it) },
+                    emoji = "",
+                    contributorName = obj.optString("contributorName", "You"),
+                    contributorUid = obj.optString("contributorUid", ""),
+                    contactPhone = obj.optString("contactPhone", ""),
+                    verifiedCount = obj.optInt("verifiedCount", 0),
+                    rating = obj.optDouble("rating", 0.0),
+                    reviewCount = obj.optInt("reviewCount", 0),
+                    createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun saveLocalListings(list: List<AccommodationListing>) {
+        runCatching {
+            val arr = JSONArray()
+            list.forEach { l ->
+                arr.put(
+                    JSONObject().apply {
+                        put("id", l.id)
+                        put("title", l.title)
+                        put("type", l.type)
+                        put("rentPerMonth", l.rentPerMonth)
+                        put("address", l.address)
+                        put("distanceKm", l.distanceKm)
+                        put("genderPreference", l.genderPreference)
+                        put("furnishing", l.furnishing)
+                        put("amenities", JSONArray(l.amenities))
+                        put("availability", l.availability)
+                        put("photoUrls", JSONArray(l.photoUrls))
+                        put("contributorName", l.contributorName)
+                        put("contributorUid", l.contributorUid)
+                        put("contactPhone", l.contactPhone)
+                        put("verifiedCount", l.verifiedCount)
+                        put("rating", l.rating)
+                        put("reviewCount", l.reviewCount)
+                        put("createdAt", l.createdAt)
+                    }
+                )
+            }
+            prefs.edit().putString("user_listings", arr.toString()).apply()
+        }
+    }
+
     init {
+        localListings = loadLocalListings()
+        cancelledRequestIds = prefs.getStringSet("cancelled_req_ids", emptySet()) ?: emptySet()
+        refreshListings()
+
         viewModelScope.launch {
             cache.observeWishlist().collect { ids -> _wishlist.value = ids }
         }
@@ -74,22 +156,37 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    fun refreshAll(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            localListings = loadLocalListings()
+            runCatching {
+                remoteListings = repository.fetchListingsOnce()
+            }
+            refreshListings()
+            refreshRequests()
+            onComplete()
+        }
+    }
+
     private fun refreshRequests() {
-        // Local edits win over the demo/remote copies so accepted or declined
-        // state survives a listener refresh.
         _roommateRequests.value = (localRequests + remoteRequests + demoIncomingRequests)
+            .filter { it.id !in cancelledRequestIds }
             .distinctBy { it.id }
     }
 
     private fun refreshListings() {
-        val base = if (remoteListings.isNotEmpty()) remoteListings else demoListings
-        _listings.value = (localListings + base).distinctBy { it.id }
+        val deleted = getDeletedListingIds()
+        // Always stack user-created + remote + curated demo stays together without wiping demos!
+        _listings.value = (localListings + remoteListings + demoListings)
+            .filter { it.id !in deleted }
+            .distinctBy { it.id }
     }
 
     fun setQuery(query: String) = updateFilters { it.copy(query = query) }
 
     fun applyFilters(filters: AccommodationFilters) {
         _filters.value = filters
+        _message.value = "Filters saved and applied."
     }
 
     fun clearFilters() {
@@ -115,48 +212,110 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun addListing(
-        title: String,
-        type: String,
-        rentPerMonth: Int,
-        address: String,
-        distanceKm: Double,
-        genderPreference: String,
-        furnishing: String,
-        amenities: List<String>,
-        availability: String,
-        photoUrls: List<String>,
-        emoji: String,
-    ) {
-        val user = FirebaseAuth.getInstance().currentUser
+    fun addListing(form: ListingForm) {
+        val user = auth.currentUser
         val listing = AccommodationListing(
-            id = UUID.randomUUID().toString(),
-            title = title.trim(),
-            type = type,
-            rentPerMonth = rentPerMonth,
-            address = address.trim(),
-            distanceKm = distanceKm,
-            genderPreference = genderPreference,
-            furnishing = furnishing,
-            amenities = amenities,
-            availability = availability,
-            photoUrls = photoUrls,
-            emoji = emoji,
-            contributorName = user?.displayName ?: "You",
+            id = "user-${System.currentTimeMillis()}",
+            title = form.title.trim(),
+            type = form.type,
+            rentPerMonth = form.rentPerMonth,
+            address = form.address.trim(),
+            distanceKm = form.distanceKm,
+            genderPreference = form.gender,
+            furnishing = form.furnishing,
+            amenities = form.amenities,
+            availability = form.availability,
+            photoUrls = form.photoUrls,
+            emoji = "",
+            contributorName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You",
             contributorUid = user?.uid.orEmpty(),
+            contactPhone = form.contactPhone.trim(),
+            createdAt = System.currentTimeMillis(),
         )
 
-        // Optimistic local add so the listing appears even if Firestore rules
-        // haven't been published yet.
         localListings = listOf(listing) + localListings
+        saveLocalListings(localListings)
         refreshListings()
-        _message.value = "Listing added — pending review"
+        _message.value = "Listing published!"
 
         viewModelScope.launch {
+            cache.emitUnifiedNotification(
+                title = "Accommodation Posted: ${listing.title}",
+                body = "${listing.type} at ${listing.address} (${listing.rentLabel}) is now listed.",
+                type = "info",
+                prefKey = "notif_room",
+            )
             runCatching { repository.addListing(listing) }
                 .onFailure {
-                    _message.value = "Saved on this device. Publish accommodation rules to sync."
+                    _message.value = "Listing saved on this device."
                 }
+        }
+    }
+
+    fun editListing(existing: AccommodationListing, form: ListingForm) {
+        val updated = existing.copy(
+            title = form.title.trim(),
+            type = form.type,
+            rentPerMonth = form.rentPerMonth,
+            address = form.address.trim(),
+            distanceKm = form.distanceKm,
+            genderPreference = form.gender,
+            furnishing = form.furnishing,
+            amenities = form.amenities,
+            availability = form.availability,
+            photoUrls = form.photoUrls,
+            contactPhone = form.contactPhone.trim(),
+        )
+        localListings = listOf(updated) + localListings.filterNot { it.id == updated.id }
+        saveLocalListings(localListings)
+        remoteListings = remoteListings.map { if (it.id == updated.id) updated else it }
+        refreshListings()
+        _message.value = "Listing updated!"
+
+        viewModelScope.launch {
+            runCatching { repository.updateListing(updated) }
+        }
+    }
+
+    fun deleteListing(listing: AccommodationListing) {
+        markListingDeleted(listing.id)
+        localListings = localListings.filterNot { it.id == listing.id }
+        saveLocalListings(localListings)
+        remoteListings = remoteListings.filterNot { it.id == listing.id }
+        refreshListings()
+        _message.value = "Listing deleted."
+
+        viewModelScope.launch {
+            runCatching { repository.deleteListing(listing.id) }
+        }
+    }
+
+    fun sendEnquiry(listing: AccommodationListing, enquiryMessage: String) {
+        val user = auth.currentUser
+        val meName = user?.displayName?.takeIf { it.isNotBlank() } ?: "A student"
+        val ownerPhone = listing.contactPhone.ifBlank { "+91 98140 11200" }
+        val actionPayload = "${listing.id}|${listing.title}|$ownerPhone|${currentUid}"
+        _message.value = "Enquiry sent to ${listing.contributorName.ifBlank { "owner" }}!"
+
+        viewModelScope.launch {
+            val targetOwner = listing.contributorUid.takeIf { it.isNotBlank() && !listing.isDemo }
+            cache.emitUnifiedNotification(
+                title = "Accommodation Enquiry: ${listing.title}",
+                body = "$meName asked about ${listing.title} (${listing.address}): \"${enquiryMessage.trim()}\". Confirm availability so they see your status & contact number ($ownerPhone).",
+                type = "accommodation_enquiry",
+                prefKey = "notif_room",
+                actionData = actionPayload,
+                targetUid = targetOwner,
+            )
+            // If sent to an external contributor, also confirm locally to the student
+            if (targetOwner != null && targetOwner != currentUid) {
+                cache.emitUnifiedNotification(
+                    title = "Enquiry Sent: ${listing.title}",
+                    body = "We sent your enquiry to ${listing.contributorName.ifBlank { "the owner" }}. You'll be notified once they confirm availability.",
+                    type = "request_sent",
+                    prefKey = "notif_room",
+                )
+            }
         }
     }
 
@@ -164,44 +323,35 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         _message.value = null
     }
 
-    /** Marks a listing genuine for the signed-in student (one per student). */
     fun markGenuine(listing: AccommodationListing) {
         if (listing.id in _verifiedIds.value) return
         _verifiedIds.value = _verifiedIds.value + listing.id
-        updateListing(listing.id) { it.copy(verifiedCount = it.verifiedCount + 1) }
+        updateListingState(listing.id) { it.copy(verifiedCount = it.verifiedCount + 1) }
         _message.value = "Thanks! You marked this stay as genuine."
 
         viewModelScope.launch {
             runCatching { repository.markGenuine(listing.id) }
-                .onFailure {
-                    _message.value = "Verification saved locally. Publish the accommodation rules to sync."
-                }
         }
     }
 
-    /** Removes the signed-in student's verification. */
     fun unmarkGenuine(listing: AccommodationListing) {
         if (listing.id !in _verifiedIds.value) return
         _verifiedIds.value = _verifiedIds.value - listing.id
-        updateListing(listing.id) {
+        updateListingState(listing.id) {
             it.copy(verifiedCount = (it.verifiedCount - 1).coerceAtLeast(0))
         }
         _message.value = "Your verification was removed."
 
         viewModelScope.launch {
             runCatching { repository.unmarkGenuine(listing.id) }
-                .onFailure {
-                    _message.value = "Verification removed on this device. Publish the rules to sync."
-                }
         }
     }
 
-    /** Adds a single review per student and refreshes the visible aggregate. */
     fun addReview(listing: AccommodationListing, rating: Int, text: String) {
         if (listing.id in _reviewedIds.value) return
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = auth.currentUser
         val review = AccommodationReview(
-            id = UUID.randomUUID().toString(),
+            id = java.util.UUID.randomUUID().toString(),
             listingId = listing.id,
             authorName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You",
             rating = rating.coerceIn(1, 5),
@@ -216,7 +366,7 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         val oldCount = listing.reviewCount
         val newCount = oldCount + 1
         val newRating = ((listing.rating * oldCount) + review.rating) / newCount
-        updateListing(listing.id) {
+        updateListingState(listing.id) {
             it.copy(
                 rating = (newRating * 10).toInt() / 10.0,
                 reviewCount = newCount,
@@ -226,9 +376,6 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
 
         viewModelScope.launch {
             runCatching { repository.addReview(listing.id, review, newRating, newCount) }
-                .onFailure {
-                    _message.value = "Review saved on this device. Publish the accommodation rules to sync."
-                }
         }
     }
 
@@ -252,7 +399,7 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         val adjustedTotal = (listing.rating * count) - review.rating + clampedRating
         val newAverage = (adjustedTotal / count).coerceIn(0.0, 5.0)
         val roundedAverage = (newAverage * 10).toInt() / 10.0
-        updateListing(listing.id) { it.copy(rating = roundedAverage) }
+        updateListingState(listing.id) { it.copy(rating = roundedAverage) }
         _message.value = "Review updated."
 
         viewModelScope.launch {
@@ -270,7 +417,7 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         val newAverage = if (newCount == 0) 0.0
         else (((listing.rating * oldCount) - review.rating) / newCount).coerceIn(0.0, 5.0)
         val roundedAverage = (newAverage * 10).toInt() / 10.0
-        updateListing(listing.id) { it.copy(rating = roundedAverage, reviewCount = newCount) }
+        updateListingState(listing.id) { it.copy(rating = roundedAverage, reviewCount = newCount) }
         _message.value = "Review deleted."
 
         viewModelScope.launch {
@@ -278,18 +425,19 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    /** Sends a roommate request with only the contact fields the student chose. */
+    /** Sends a roommate request for a specific PG & notifies both poster/co-seekers and sender. */
     fun sendRoommateRequest(
         listing: AccommodationListing,
         contact: ContactInfo,
         message: String,
     ) {
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = auth.currentUser
+        val meName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You"
         val request = RoommateRequest(
-            id = UUID.randomUUID().toString(),
+            id = java.util.UUID.randomUUID().toString(),
             listingId = listing.id,
             listingTitle = listing.title,
-            fromName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You",
+            fromName = meName,
             fromUid = user?.uid.orEmpty(),
             message = message.trim(),
             contact = contact,
@@ -298,44 +446,77 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         )
         localRequests = listOf(request) + localRequests
         refreshRequests()
-        _message.value = "Roommate request sent to ${listing.contributorName.ifBlank { "the contributor" }}."
+        _message.value = "Roommate request sent for ${listing.title}!"
 
         viewModelScope.launch {
+            cache.emitUnifiedNotification(
+                title = "Roommate Request: ${listing.title}",
+                body = "$meName is looking for a roommate at ${listing.title}: \"${message.trim()}\"",
+                type = "request_sent",
+                prefKey = "notif_room",
+            )
+            val targetOwner = listing.contributorUid.takeIf { it.isNotBlank() && it != currentUid && !listing.isDemo }
+            if (targetOwner != null) {
+                cache.emitUnifiedNotification(
+                    title = "New Roommate Request at ${listing.title}",
+                    body = "$meName wants to share ${listing.title}: \"${message.trim()}\"",
+                    type = "connection_request",
+                    prefKey = "notif_room",
+                    targetUid = targetOwner,
+                )
+            }
             runCatching { repository.sendRoommateRequest(request) }
-                .onFailure {
-                    _message.value = "Request saved locally. Publish the accommodation rules to sync."
-                }
         }
     }
 
-    /** Sends a request to a student listed in Find a Roommate. */
-    fun sendRoommateRequestToSeeker(seeker: RoommateSeeker) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    /** Sends a roommate request to a student in Find a Roommate with contact details & notifications. */
+    fun sendRoommateRequestToSeeker(
+        seeker: RoommateSeeker,
+        message: String = "Hi ${seeker.name}! I'm also looking for a roommate in ${seeker.area}.",
+        contact: ContactInfo = ContactInfo(),
+    ) {
+        val uid = currentUid
         if (_roommateRequests.value.any { !it.incoming && it.toUid == seeker.uid }) {
             _message.value = "You already sent ${seeker.name} a request."
             return
         }
-        val user = FirebaseAuth.getInstance().currentUser
+        val meName = auth.currentUser?.displayName?.takeIf { it.isNotBlank() } ?: "You"
         val request = RoommateRequest(
-            id = UUID.randomUUID().toString(),
+            id = java.util.UUID.randomUUID().toString(),
             listingId = "",
-            listingTitle = "Roommate in ${seeker.area}",
-            fromName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You",
+            listingTitle = "Roommate with ${seeker.name} (${seeker.area})",
+            fromName = meName,
             fromUid = uid,
-            message = "Hi ${seeker.name}! I'm also looking for a roommate in ${seeker.area}.",
-            contact = ContactInfo(),
+            message = message.trim(),
+            contact = contact,
             incoming = false,
             toUid = seeker.uid,
         )
         localRequests = listOf(request) + localRequests
         refreshRequests()
-        _message.value = "Request sent to ${seeker.name}."
+        _message.value = "Roommate request sent to ${seeker.name}!"
 
         viewModelScope.launch {
+            cache.emitUnifiedNotification(
+                title = "Roommate Request Sent to ${seeker.name}",
+                body = "Requested to connect as roommates in ${seeker.area}: \"${message.trim()}\"",
+                type = "request_sent",
+                prefKey = "notif_room",
+            )
             runCatching { repository.sendRoommateRequest(request) }
-                .onFailure {
-                    _message.value = "Request saved locally. Publish the accommodation rules to sync."
-                }
+        }
+    }
+
+    fun cancelRoommateRequest(request: RoommateRequest) {
+        cancelledRequestIds = cancelledRequestIds + request.id
+        prefs.edit().putStringSet("cancelled_req_ids", cancelledRequestIds).apply()
+        localRequests = localRequests.filterNot { it.id == request.id }
+        remoteRequests = remoteRequests.filterNot { it.id == request.id }
+        refreshRequests()
+        _message.value = "Roommate request withdrawn."
+
+        viewModelScope.launch {
+            runCatching { repository.cancelRoommateRequest(request.id) }
         }
     }
 
@@ -348,14 +529,33 @@ class AccommodationViewModel(application: Application) : AndroidViewModel(applic
         _message.value = if (accept) "Roommate request accepted." else "Roommate request declined."
 
         viewModelScope.launch {
+            val statusWord = if (accept) "accepted" else "declined"
+            val meName = auth.currentUser?.displayName?.takeIf { it.isNotBlank() } ?: "Your peer"
+            cache.emitUnifiedNotification(
+                title = "Roommate Request ${statusWord.replaceFirstChar { it.uppercase() }}",
+                body = "Roommate request with ${request.fromName} for ${request.listingTitle} was $statusWord.",
+                type = if (accept) "connection_accepted" else "info",
+                prefKey = "notif_room",
+            )
+            val otherUid = request.fromUid.takeIf { it.isNotBlank() && it != currentUid && !it.startsWith("s") }
+            if (otherUid != null) {
+                cache.emitUnifiedNotification(
+                    title = "Roommate Request ${statusWord.replaceFirstChar { it.uppercase() }}",
+                    body = "$meName $statusWord your roommate request for ${request.listingTitle}!",
+                    type = if (accept) "connection_accepted" else "info",
+                    prefKey = "notif_room",
+                    targetUid = otherUid,
+                )
+            }
             runCatching { repository.updateRoommateStatus(request.id, accept) }
         }
     }
 
-    private fun updateListing(id: String, transform: (AccommodationListing) -> AccommodationListing) {
+    private fun updateListingState(id: String, transform: (AccommodationListing) -> AccommodationListing) {
         _listings.value = _listings.value.map { if (it.id == id) transform(it) else it }
         remoteListings = remoteListings.map { if (it.id == id) transform(it) else it }
         localListings = localListings.map { if (it.id == id) transform(it) else it }
+        saveLocalListings(localListings)
     }
 
     override fun onCleared() {

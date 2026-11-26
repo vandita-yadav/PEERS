@@ -107,12 +107,23 @@ data class PeerNotification(
     val timestampMillis: Long,
     val isUnread: Boolean,
     val type: NotificationType = NotificationType.INFO,
+    val actionData: String = "",
+    val resolvedState: String = "",
 ) {
     val isConnectionRequest: Boolean
         get() = type == NotificationType.CONNECTION_REQUEST
+
+    val isAccommodationEnquiry: Boolean
+        get() = type == NotificationType.ACCOMMODATION_ENQUIRY
 }
 
-enum class NotificationType { CONNECTION_REQUEST, CONNECTION_ACCEPTED, REQUEST_SENT, INFO }
+enum class NotificationType {
+    CONNECTION_REQUEST,
+    CONNECTION_ACCEPTED,
+    REQUEST_SENT,
+    ACCOMMODATION_ENQUIRY,
+    INFO,
+}
 
 object DashboardMockData {
     val today: LocalDate = LocalDate.now()

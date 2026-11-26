@@ -496,6 +496,10 @@ fun DashboardScreen(
                             showAssistant = false
                             currentTab = DashTab.COMMUNITY
                         },
+                        onNavigateToContacts = {
+                            showAssistant = false
+                            showContacts = true
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }

@@ -32,8 +32,35 @@ class AccommodationRepository(
             }
     }
 
+    suspend fun fetchListingsOnce(): List<AccommodationListing> {
+        val snap = listingsRef().orderBy("createdAt", Query.Direction.DESCENDING).get().await()
+        return snap.documents.mapNotNull { it.toListing() }
+    }
+
     suspend fun addListing(listing: AccommodationListing) {
         listingsRef().document(listing.id).set(listing.toMap()).await()
+    }
+
+    suspend fun updateListing(listing: AccommodationListing) {
+        listingsRef().document(listing.id).update(
+            mapOf(
+                "title" to listing.title,
+                "type" to listing.type,
+                "rentPerMonth" to listing.rentPerMonth,
+                "address" to listing.address,
+                "distanceKm" to listing.distanceKm,
+                "genderPreference" to listing.genderPreference,
+                "furnishing" to listing.furnishing,
+                "amenities" to listing.amenities,
+                "availability" to listing.availability,
+                "contactPhone" to listing.contactPhone,
+                "photoUrls" to listing.photoUrls,
+            )
+        ).await()
+    }
+
+    suspend fun deleteListing(listingId: String) {
+        listingsRef().document(listingId).delete().await()
     }
 
     /** Records one genuine-verification per student and bumps the listing counter. */
@@ -146,6 +173,10 @@ class AccommodationRepository(
             .await()
     }
 
+    suspend fun cancelRoommateRequest(requestId: String) {
+        firestore.collection("roommateRequests").document(requestId).delete().await()
+    }
+
     private fun com.google.firebase.firestore.DocumentSnapshot.toRoommateRequest(
         currentUid: String,
     ): RoommateRequest? {
@@ -195,6 +226,7 @@ class AccommodationRepository(
             emoji = "",
             contributorName = getString("contributorName").orEmpty(),
             contributorUid = getString("contributorUid").orEmpty(),
+            contactPhone = getString("contactPhone").orEmpty(),
             verifiedCount = (getLong("verifiedCount") ?: 0L).toInt(),
             rating = getDouble("rating") ?: 0.0,
             reviewCount = (getLong("reviewCount") ?: 0L).toInt(),
@@ -217,6 +249,7 @@ class AccommodationRepository(
         "emoji" to emoji,
         "contributorName" to contributorName,
         "contributorUid" to (contributorUid.ifBlank { uid.orEmpty() }),
+        "contactPhone" to contactPhone,
         "verifiedCount" to verifiedCount,
         "rating" to rating,
         "reviewCount" to reviewCount,

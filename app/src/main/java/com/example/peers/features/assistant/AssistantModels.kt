@@ -14,7 +14,8 @@ enum class AssistantActionType {
     OPEN_ACCOMMODATION,
     OPEN_EVENTS,
     OPEN_COMMUNITY,
-    OPEN_RENTALS
+    OPEN_RENTALS,
+    OPEN_CONTACTS,
 }
 
 data class AssistantAction(

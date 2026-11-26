@@ -1,5 +1,5 @@
 PEERS ANDROID APP — VIVA PRESENTATION MASTER NOTES (58 POINTS)
-Version: 1.2.6 | Package: com.example.peers | Platform: Android (Kotlin + Jetpack Compose)
+Version: 1.2.7 | Package: com.example.peers | Platform: Android (Kotlin + Jetpack Compose)
 
 ========================================================================
 SECTION A: ARCHITECTURE, TECH STACK & CORE ENGINEERING (POINTS 1–28)

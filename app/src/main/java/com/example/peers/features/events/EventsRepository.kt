@@ -65,6 +65,14 @@ class EventsRepository(
             }
     }
 
+    suspend fun fetchEventsOnce(): List<CommunityEvent> {
+        val snap = eventsRef()
+            .orderBy("startMillis", Query.Direction.ASCENDING)
+            .get()
+            .await()
+        return snap.documents.mapNotNull { it.toEvent() }
+    }
+
     suspend fun createEvent(event: CommunityEvent) {
         val user = auth.currentUser ?: error("Not signed in")
         eventsRef().document(event.id).set(
@@ -78,11 +86,30 @@ class EventsRepository(
                 "startMillis" to event.startMillis,
                 "emoji" to event.emoji,
                 "capacity" to event.capacity,
-                "attendeeCount" to 0,
+                "attendeeCount" to event.attendeeCount,
                 "createdBy" to user.uid,
                 "createdAt" to FieldValue.serverTimestamp(),
             )
         ).await()
+    }
+
+    suspend fun updateEvent(event: CommunityEvent) {
+        eventsRef().document(event.id).update(
+            mapOf(
+                "title" to event.title,
+                "description" to event.description,
+                "organizerName" to event.organizerName,
+                "organizerType" to event.organizerType.name,
+                "venue" to event.venue,
+                "city" to event.city,
+                "startMillis" to event.startMillis,
+                "capacity" to event.capacity,
+            )
+        ).await()
+    }
+
+    suspend fun deleteEvent(eventId: String) {
+        eventsRef().document(eventId).delete().await()
     }
 
     /**

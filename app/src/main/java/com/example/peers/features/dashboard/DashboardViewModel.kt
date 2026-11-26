@@ -147,8 +147,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                                 "connection_request" -> NotificationType.CONNECTION_REQUEST
                                 "connection_accepted" -> NotificationType.CONNECTION_ACCEPTED
                                 "request_sent" -> NotificationType.REQUEST_SENT
+                                "accommodation_enquiry" -> NotificationType.ACCOMMODATION_ENQUIRY
                                 else -> NotificationType.INFO
                             },
+                            actionData = row.actionData,
+                            resolvedState = row.resolvedState,
                         )
                     }
                     _unreadCount.value = rows.count { it.isUnread }
@@ -269,6 +272,71 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun consumeActionMessage() {
         _actionMessage.value = null
+    }
+
+    /** Pull-to-refresh resync across profile, events, saved events, and notifications. */
+    fun refreshAll(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            val uid = auth.currentUser?.uid
+            if (uid != null) {
+                runCatching {
+                    val snap = firestore.collection("users").document(uid).get().await()
+                    _user.value = snapshotToUser(uid, snap, auth.currentUser)
+                }
+            }
+            refreshEvents()
+            runCatching { cache.syncPending() }
+            runCatching { cache.refreshNotificationsNow() }
+            onComplete()
+        }
+    }
+
+    /** Responds to an accommodation availability enquiry from in-app notifications. */
+    fun respondToEnquiryNotification(notification: PeerNotification, isAvailable: Boolean) {
+        viewModelScope.launch {
+            val statusLabel = if (isAvailable) "Available now" else "Currently unavailable"
+            val resolvedKey = if (isAvailable) "available" else "unavailable"
+            cache.resolveNotificationAction(notification.id, resolvedKey)
+
+            // Action format: listingId|listingTitle|ownerPhone|enquirerUid
+            val parts = notification.actionData.split("|")
+            val listingId = parts.getOrNull(0).orEmpty()
+            val listingTitle = parts.getOrNull(1).orEmpty().ifBlank { "Accommodation" }
+            val ownerPhone = parts.getOrNull(2).orEmpty().ifBlank { "Call via listing card" }
+            val enquirerUid = parts.getOrNull(3).orEmpty()
+
+            if (listingId.isNotBlank()) {
+                runCatching {
+                    firestore.collection("accommodations").document(listingId)
+                        .update("availability", statusLabel)
+                        .await()
+                }
+            }
+
+            val replyTitle = "$listingTitle: ${if (isAvailable) "Available" else "Unavailable"}"
+            val replyBody = if (isAvailable) {
+                "Good news! $listingTitle is marked Available. Contact owner at $ownerPhone to schedule a visit."
+            } else {
+                "$listingTitle was marked Unavailable right now. Contact owner ($ownerPhone) for upcoming vacancies."
+            }
+            cache.emitUnifiedNotification(
+                title = replyTitle,
+                body = replyBody,
+                type = "info",
+                prefKey = "notif_room",
+                targetUid = enquirerUid.takeIf { it.isNotBlank() && it != auth.currentUser?.uid },
+            )
+            // Also record confirmation locally so current user sees the feedback immediately
+            if (enquirerUid.isNotBlank() && enquirerUid != auth.currentUser?.uid) {
+                cache.emitUnifiedNotification(
+                    title = "Availability Updated: $listingTitle",
+                    body = "You marked $listingTitle as $statusLabel and notified the enquirer.",
+                    type = "info",
+                    prefKey = "notif_room",
+                )
+            }
+            _actionMessage.value = "Marked $listingTitle as $statusLabel & notified student."
+        }
     }
 
     /** Marks all notifications read in Room immediately, then syncs to Firestore. */

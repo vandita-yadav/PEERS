@@ -27,14 +27,17 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +70,7 @@ private val notifDateFormatter = DateTimeFormatter.ofPattern("EEEE, d MMM", Loca
  * In-app notifications (Part 3 spec): grouped list with unread emphasis,
  * inline Accept/Decline, mark-all-read action and an empty state.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     viewModel: DashboardViewModel,
@@ -82,6 +86,7 @@ fun NotificationsScreen(
 
     // Local resolution of inline Accept/Decline (demo peers; real backend in Community phase).
     var resolvedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     val groups = notifications.groupBy { dayLabel(it.timestampMillis) }
 
@@ -134,27 +139,44 @@ fun NotificationsScreen(
                 )
             }
         } else {
-            LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    viewModel.refreshAll { isRefreshing = false }
+                },
                 modifier = Modifier.fillMaxSize().padding(padding),
             ) {
-                groups.forEach { (day, items) ->
-                    item(key = day) {
-                        Text(
-                            day,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = PeersPrimaryIndigo,
-                            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
-                        )
-                    }
-                    items(items, key = { it.id }) { notification ->
-                        NotificationRow(
-                            notification = notification,
-                            resolved = resolvedIds.contains(notification.id),
-                            onAccept = { resolvedIds = resolvedIds + notification.id },
-                            onDecline = { resolvedIds = resolvedIds + notification.id },
-                        )
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    groups.forEach { (day, items) ->
+                        item(key = day) {
+                            Text(
+                                day,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = PeersPrimaryIndigo,
+                                modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                            )
+                        }
+                        items(items, key = { it.id }) { notification ->
+                            NotificationRow(
+                                notification = notification,
+                                resolved = resolvedIds.contains(notification.id) || notification.resolvedState.isNotBlank(),
+                                onAccept = { resolvedIds = resolvedIds + notification.id },
+                                onDecline = { resolvedIds = resolvedIds + notification.id },
+                                onMarkAvailable = {
+                                    resolvedIds = resolvedIds + notification.id
+                                    viewModel.respondToEnquiryNotification(notification, isAvailable = true)
+                                },
+                                onMarkUnavailable = {
+                                    resolvedIds = resolvedIds + notification.id
+                                    viewModel.respondToEnquiryNotification(notification, isAvailable = false)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -168,11 +190,14 @@ private fun NotificationRow(
     resolved: Boolean,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
+    onMarkAvailable: () -> Unit = {},
+    onMarkUnavailable: () -> Unit = {},
 ) {
     val (iconBg, iconTint) = when (notification.type) {
         NotificationType.CONNECTION_REQUEST -> PeersLavender to PeersBrandInk
         NotificationType.CONNECTION_ACCEPTED -> PeersMint to Color(0xFF1F6B3B)
         NotificationType.REQUEST_SENT -> PeersSky to Color(0xFF1E4C6B)
+        NotificationType.ACCOMMODATION_ENQUIRY -> PeersLavender to PeersPrimaryIndigo
         NotificationType.INFO -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Surface(
@@ -194,7 +219,7 @@ private fun NotificationRow(
                 )
             }
             Column(Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.Top) {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -206,6 +231,7 @@ private fun NotificationRow(
                             NotificationType.CONNECTION_REQUEST -> R.drawable.request_black to R.drawable.request_white
                             NotificationType.CONNECTION_ACCEPTED -> R.drawable.handshake_black to R.drawable.handshake_white
                             NotificationType.REQUEST_SENT -> R.drawable.invite_black to R.drawable.invite_white
+                            NotificationType.ACCOMMODATION_ENQUIRY -> R.drawable.accomodation_black to R.drawable.accomodation_white
                             NotificationType.INFO -> R.drawable.info_black to R.drawable.info_white
                         }
                         PeersDrawableIcon(
@@ -222,18 +248,20 @@ private fun NotificationRow(
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = if (notification.isUnread) FontWeight.Bold else FontWeight.Medium,
                                 color = iconTint,
+                                modifier = Modifier.weight(1f),
                             )
-                            Spacer(Modifier.weight(1f))
                             Text(
                                 relativeLabel(notification.timestampMillis),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 8.dp),
                             )
                         }
                         Text(
                             notification.body,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
                         )
                     }
                 }
@@ -258,12 +286,32 @@ private fun NotificationRow(
                             ),
                         )
                     }
+                } else if (notification.isAccommodationEnquiry && !resolved) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(start = 56.dp, top = 10.dp),
+                    ) {
+                        FilledTonalButton(onClick = onMarkAvailable) {
+                            Icon(Icons.Rounded.Check, null, Modifier.size(16.dp))
+                            Text("  Mark Available", fontSize = 12.5.sp)
+                        }
+                        OutlinedButton(onClick = onMarkUnavailable) {
+                            Icon(Icons.Rounded.Close, null, Modifier.size(16.dp))
+                            Text("  Unavailable", fontSize = 12.5.sp)
+                        }
+                    }
                 } else if (resolved) {
+                    val stateText = when (notification.resolvedState) {
+                        "available" -> "Marked as Available"
+                        "unavailable" -> "Marked as Unavailable"
+                        else -> "Handled"
+                    }
                     Text(
-                        "Handled",
+                        stateText,
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
                         color = PeersPrimaryIndigo,
-                        modifier = Modifier.padding(start = 56.dp, top = 4.dp),
+                        modifier = Modifier.padding(start = 56.dp, top = 6.dp),
                     )
                 }
             }
