@@ -1,5 +1,5 @@
 PEERS ANDROID APP — VIVA PRESENTATION MASTER NOTES (58 POINTS)
-Version: 1.2.7 | Package: com.example.peers | Platform: Android (Kotlin + Jetpack Compose)
+Version: 1.2.8 | Package: com.example.peers | Platform: Android (Kotlin + Jetpack Compose)
 
 ========================================================================
 SECTION A: ARCHITECTURE, TECH STACK & CORE ENGINEERING (POINTS 1–28)
@@ -178,7 +178,7 @@ SECTION B: FEATURE-BY-FEATURE FUNCTIONAL COVERAGE (POINTS 29–58)
     Updating name, university, degree, city, state, phone dial code, interests, or avatar/photo in EditProfileScreen updates Firestore and immediately reflects across Dashboard Header, Drawer, Profile, and Settings via snapshot listeners.
 
 57. Granular Notifications Center & Unread Counters:
-    NotificationsScreen groups alerts chronologically ("Today", "Yesterday", date labels), differentiates connection requests vs. campus announcements, allows one-tap "Mark all read", and keeps unread badges synced on Dashboard & sub-screen headers.
+    NotificationsScreen groups alerts chronologically ("Today", "Yesterday", date labels), differentiates accommodation roommate requests, stay enquiries (with inline Mark Available/Unavailable actions), and campus alerts, allows one-tap "Mark all read", and keeps unread badges synced on Dashboard & sub-screen headers.
 
-58. Privacy, In-App Permissions & Clean Settings UX:
-    Settings consolidates Light/Dark/System appearance switching, per-category notification toggles, live Camera/Location/Notification permission badges with in-app request dialogs, Invite Peer sharing sheet, Sign Out, and irreversible Delete Account safety flow.
+58. Privacy, In-App Permissions, Settings & Role-Gated Admin Console:
+    Settings consolidates Light/Dark/System appearance switching, per-category notification toggles, live Camera/Location/Notification permission badges with in-app request dialogs, Invite Peer sharing, Sign Out, and irreversible Delete Account safety flow—plus a dedicated PEERS Admin Console gated to authorized admins (`van22pop576@gmail.com`, `tanyayadav2552005@gmail.com`, and dynamic co-admins) for campus broadcasts, report moderation, listings/events oversight, and user directory management.

@@ -66,6 +66,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.peers.R
 import com.example.peers.features.accommodation.AccommodationScreen
+import com.example.peers.features.admin.AdminConfig
+import com.example.peers.features.admin.AdminScreen
 import com.example.peers.features.assistant.AssistantScreen
 import com.example.peers.features.budget.BudgetPlannerScreen
 import com.example.peers.features.checklist.ChecklistScreen
@@ -123,6 +125,7 @@ fun DashboardScreen(
     var showBudget by remember { mutableStateOf(false) }
     var showChecklist by remember { mutableStateOf(false) }
     var showAssistant by remember { mutableStateOf(false) }
+    var showAdmin by remember { mutableStateOf(false) }
     var assistantInitialPrompt by remember { mutableStateOf<String?>(null) }
     var showInviteSheet by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
@@ -133,6 +136,13 @@ fun DashboardScreen(
     val savedEventIds by dashboardViewModel.savedEventIds.collectAsStateWithLifecycle()
     val actionMessage by dashboardViewModel.actionMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val isAdmin = AdminConfig.isAdmin(user?.email, context)
+
+    LaunchedEffect(user?.email) {
+        if (user?.email?.isNotBlank() == true) {
+            AdminConfig.syncAdminsFromFirestore(context)
+        }
+    }
 
     LaunchedEffect(actionMessage) {
         actionMessage?.let {
@@ -151,12 +161,13 @@ fun DashboardScreen(
         showBudget = false
         showChecklist = false
         showAssistant = false
+        showAdmin = false
     }
 
     // Top-level system Back navigation guard:
     // Drawer -> Active overlays -> Non-Home tabs -> Double-back guard on Home.
     val hasActiveOverlay = showEditProfile || showProfile || showNotifications ||
-        showAccommodation || showRentals || showContacts || showBudget || showChecklist || showAssistant
+        showAccommodation || showRentals || showContacts || showBudget || showChecklist || showAssistant || showAdmin
 
     BackHandler(enabled = drawerState.isOpen || !hasActiveOverlay) {
         when {
@@ -240,6 +251,11 @@ fun DashboardScreen(
                 onNavigateToSettings = {
                     clearAllOverlays()
                     currentTab = DashTab.SETTINGS
+                    scope.launch { drawerState.close() }
+                },
+                onNavigateToAdmin = {
+                    clearAllOverlays()
+                    showAdmin = true
                     scope.launch { drawerState.close() }
                 },
                 onNavigateToRateUs = {
@@ -456,6 +472,22 @@ fun DashboardScreen(
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
+                showAdmin -> {
+                    AdminScreen(
+                        user = user,
+                        unreadCount = unreadCount,
+                        onBack = { showAdmin = false },
+                        onProfileClick = {
+                            showAdmin = false
+                            showProfile = true
+                        },
+                        onBellClick = {
+                            showAdmin = false
+                            showNotifications = true
+                        },
+                        modifier = Modifier.padding(innerPadding),
+                    )
+                }
                 showAssistant -> {
                     AssistantScreen(
                         onBack = { showAssistant = false },
@@ -519,6 +551,7 @@ fun DashboardScreen(
                                 onOpenProfile = { showProfile = true },
                                 unreadCount = unreadCount,
                                 onBellClick = { showNotifications = true },
+                                onOpenAdmin = if (isAdmin) ({ showAdmin = true }) else null,
                                 onBack = { currentTab = DashTab.HOME },
                                 modifier = Modifier.padding(innerPadding),
                             )
@@ -647,11 +680,14 @@ private fun PeersDrawerSheet(
     onNavigateToAssistant: () -> Unit,
     onNavigateToInvite: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToAdmin: () -> Unit = {},
     onNavigateToRateUs: () -> Unit,
     onConfirmSignOut: () -> Unit,
 ) {
+    val context = LocalContext.current
     val user by viewModel.user.collectAsStateWithLifecycle()
     val isDark = themeMode == PeersThemeMode.NeonDark
+    val isAdmin = AdminConfig.isAdmin(user?.email, context)
 
     ModalDrawerSheet(
         drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -740,6 +776,16 @@ private fun PeersDrawerSheet(
                 DrawerSectionLabel("ACCOUNT & PREFERENCES")
                 DrawerItem(R.drawable.community_black, R.drawable.community_white, "My Profile", onClick = onOpenProfile)
                 DrawerItem(R.drawable.settings_black, R.drawable.settings_white, "Settings", onClick = onNavigateToSettings)
+                if (isAdmin) {
+                    DrawerItem(
+                        R.drawable.stars_black,
+                        R.drawable.stars_white,
+                        "Admin Console",
+                        tint = PeersPrimaryIndigo,
+                        useIconTint = true,
+                        onClick = onNavigateToAdmin,
+                    )
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

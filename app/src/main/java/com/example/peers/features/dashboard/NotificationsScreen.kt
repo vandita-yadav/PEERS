@@ -133,7 +133,7 @@ fun NotificationsScreen(
                     modifier = Modifier.padding(top = 10.dp),
                 )
                 Text(
-                    "Connection requests and event reminders will show up here.",
+                    "Roommate requests, accommodation enquiries, and event reminders will show up here.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -194,8 +194,8 @@ private fun NotificationRow(
     onMarkUnavailable: () -> Unit = {},
 ) {
     val (iconBg, iconTint) = when (notification.type) {
-        NotificationType.CONNECTION_REQUEST -> PeersLavender to PeersBrandInk
-        NotificationType.CONNECTION_ACCEPTED -> PeersMint to Color(0xFF1F6B3B)
+        NotificationType.ROOMMATE_REQUEST -> PeersLavender to PeersBrandInk
+        NotificationType.ROOMMATE_ACCEPTED -> PeersMint to Color(0xFF1F6B3B)
         NotificationType.REQUEST_SENT -> PeersSky to Color(0xFF1E4C6B)
         NotificationType.ACCOMMODATION_ENQUIRY -> PeersLavender to PeersPrimaryIndigo
         NotificationType.INFO -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
@@ -228,8 +228,8 @@ private fun NotificationRow(
                             .background(iconBg),
                     ) {
                         val (lightRes, darkRes) = when (notification.type) {
-                            NotificationType.CONNECTION_REQUEST -> R.drawable.request_black to R.drawable.request_white
-                            NotificationType.CONNECTION_ACCEPTED -> R.drawable.handshake_black to R.drawable.handshake_white
+                            NotificationType.ROOMMATE_REQUEST -> R.drawable.request_black to R.drawable.request_white
+                            NotificationType.ROOMMATE_ACCEPTED -> R.drawable.handshake_black to R.drawable.handshake_white
                             NotificationType.REQUEST_SENT -> R.drawable.invite_black to R.drawable.invite_white
                             NotificationType.ACCOMMODATION_ENQUIRY -> R.drawable.accomodation_black to R.drawable.accomodation_white
                             NotificationType.INFO -> R.drawable.info_black to R.drawable.info_white
@@ -266,7 +266,7 @@ private fun NotificationRow(
                     }
                 }
 
-                if (notification.isConnectionRequest && !resolved) {
+                if (notification.isRoommateRequest && !resolved) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(start = 56.dp, top = 8.dp),
