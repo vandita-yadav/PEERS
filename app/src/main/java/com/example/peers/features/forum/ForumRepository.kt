@@ -33,6 +33,7 @@ class ForumRepository(
 
     /** Live comments for one discussion. */
     fun observeComments(postId: String, onChange: (List<ForumComment>) -> Unit): ListenerRegistration {
+        val currentUid = uid
         return postsRef().document(postId).collection("comments")
             .orderBy("createdAt", Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, error ->
@@ -40,8 +41,27 @@ class ForumRepository(
                     android.util.Log.w("PeersForum", "comments listener failed", error)
                     return@addSnapshotListener
                 }
-                onChange(snapshot?.documents?.mapNotNull { it.toComment(postId) }.orEmpty())
+                onChange(snapshot?.documents?.mapNotNull { it.toComment(postId, currentUid) }.orEmpty())
             }
+    }
+
+    suspend fun fetchPostsOnce(): List<ForumPost> {
+        val currentUid = uid
+        val snap = postsRef()
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(80)
+            .get()
+            .await()
+        return snap.documents.mapNotNull { it.toPost(currentUid) }
+    }
+
+    suspend fun fetchCommentsOnce(postId: String): List<ForumComment> {
+        val currentUid = uid
+        val snap = postsRef().document(postId).collection("comments")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .get()
+            .await()
+        return snap.documents.mapNotNull { it.toComment(postId, currentUid) }
     }
 
     suspend fun addPost(
@@ -147,7 +167,14 @@ class ForumRepository(
         }.await()
     }
 
-    suspend fun addComment(post: ForumPost, body: String): ForumComment {
+    suspend fun addComment(
+        post: ForumPost,
+        body: String,
+        replyToId: String = "",
+        replyToAuthorName: String = "",
+        replyToSnippet: String = "",
+        mediaUrl: String = "",
+    ): ForumComment {
         val user = auth.currentUser ?: error("Not signed in")
         val comment = ForumComment(
             id = "",
@@ -157,6 +184,10 @@ class ForumRepository(
             authorEmoji = "",
             body = body,
             createdAt = System.currentTimeMillis(),
+            replyToId = replyToId,
+            replyToAuthorName = replyToAuthorName,
+            replyToSnippet = replyToSnippet,
+            mediaUrl = mediaUrl,
         )
         val postRef = postsRef().document(post.id)
         val commentRef = postRef.collection("comments").document()
@@ -183,16 +214,52 @@ class ForumRepository(
             postRef.update("commentCount", FieldValue.increment(1)).await()
         }
 
+        // Firestore document max is 1MB; only persist inline media <= 350KB to avoid failing write
+        val firestoreMedia = if (mediaUrl.length <= 350_000) mediaUrl else ""
         commentRef.set(
             mapOf(
                 "authorUid" to comment.authorUid,
                 "authorName" to comment.authorName,
                 "authorEmoji" to comment.authorEmoji,
                 "body" to comment.body,
+                "upvoteCount" to 0,
+                "downvoteCount" to 0,
+                "upvotedBy" to emptyList<String>(),
+                "downvotedBy" to emptyList<String>(),
+                "replyToId" to replyToId,
+                "replyToAuthorName" to replyToAuthorName,
+                "replyToSnippet" to replyToSnippet,
+                "mediaUrl" to firestoreMedia,
                 "createdAt" to FieldValue.serverTimestamp(),
             )
         ).await()
         return comment.copy(id = commentRef.id)
+    }
+
+    suspend fun voteComment(postId: String, commentId: String, vote: Int) {
+        val currentUid = uid ?: error("Not signed in")
+        val ref = postsRef().document(postId).collection("comments").document(commentId)
+        firestore.runTransaction { transaction ->
+            val snap = transaction.get(ref)
+            if (!snap.exists()) return@runTransaction
+            val up = (snap.get("upvotedBy") as? List<*>)?.filterIsInstance<String>().orEmpty().toMutableList()
+            val down = (snap.get("downvotedBy") as? List<*>)?.filterIsInstance<String>().orEmpty().toMutableList()
+            up.remove(currentUid)
+            down.remove(currentUid)
+            when (vote) {
+                1 -> up.add(currentUid)
+                -1 -> down.add(currentUid)
+            }
+            transaction.update(
+                ref,
+                mapOf(
+                    "upvotedBy" to up,
+                    "downvotedBy" to down,
+                    "upvoteCount" to up.size,
+                    "downvoteCount" to down.size,
+                )
+            )
+        }.await()
     }
 
     suspend fun report(targetType: String, targetId: String, reason: ReportReason) {
@@ -230,8 +297,18 @@ class ForumRepository(
         )
     }
 
-    private fun com.google.firebase.firestore.DocumentSnapshot.toComment(postId: String): ForumComment =
-        ForumComment(
+    private fun com.google.firebase.firestore.DocumentSnapshot.toComment(
+        postId: String,
+        currentUid: String? = null,
+    ): ForumComment {
+        val up = (get("upvotedBy") as? List<*>)?.filterIsInstance<String>().orEmpty()
+        val down = (get("downvotedBy") as? List<*>)?.filterIsInstance<String>().orEmpty()
+        val myVote = when {
+            currentUid != null && currentUid in up -> 1
+            currentUid != null && currentUid in down -> -1
+            else -> 0
+        }
+        return ForumComment(
             id = id,
             postId = postId,
             authorUid = getString("authorUid").orEmpty(),
@@ -239,5 +316,13 @@ class ForumRepository(
             authorEmoji = "",
             body = getString("body").orEmpty(),
             createdAt = getTimestamp("createdAt")?.toDate()?.time ?: System.currentTimeMillis(),
+            upvoteCount = (getLong("upvoteCount") ?: up.size.toLong()).toInt(),
+            downvoteCount = (getLong("downvoteCount") ?: down.size.toLong()).toInt(),
+            myVote = myVote,
+            replyToId = getString("replyToId").orEmpty(),
+            replyToAuthorName = getString("replyToAuthorName").orEmpty(),
+            replyToSnippet = getString("replyToSnippet").orEmpty(),
+            mediaUrl = getString("mediaUrl").orEmpty(),
         )
+    }
 }

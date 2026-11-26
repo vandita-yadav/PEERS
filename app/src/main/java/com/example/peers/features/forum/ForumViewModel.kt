@@ -2,11 +2,17 @@ package com.example.peers.features.forum
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.peers.features.offline.OfflineCacheRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,8 +23,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 class ForumViewModel @JvmOverloads constructor(
     application: Application,
@@ -27,6 +36,7 @@ class ForumViewModel @JvmOverloads constructor(
 
     private val prefs = application.getSharedPreferences("peers_forum_local", Context.MODE_PRIVATE)
     private val auth = FirebaseAuth.getInstance()
+    private val cache = OfflineCacheRepository.get(application)
 
     private val _university = MutableStateFlow(prefs.getString("last_university", "").orEmpty())
     val university: StateFlow<String> = _university.asStateFlow()
@@ -98,6 +108,20 @@ class ForumViewModel @JvmOverloads constructor(
         prefs.edit().putStringSet("deleted_post_ids", next).apply()
     }
 
+    private fun getCommentVotes(): MutableMap<String, Int> {
+        val raw = prefs.getString("comment_votes_map", null) ?: return mutableMapOf()
+        return runCatching {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().associateWith { obj.getInt(it) }.toMutableMap()
+        }.getOrDefault(mutableMapOf())
+    }
+
+    private fun saveCommentVote(commentId: String, vote: Int) {
+        val map = getCommentVotes()
+        if (vote == 0) map.remove(commentId) else map[commentId] = vote
+        prefs.edit().putString("comment_votes_map", JSONObject(map as Map<*, *>).toString()).apply()
+    }
+
     private fun loadLocalComments(postId: String): List<ForumComment> {
         val jsonStr = prefs.getString("comments_$postId", null) ?: return emptyList()
         return runCatching {
@@ -112,6 +136,13 @@ class ForumViewModel @JvmOverloads constructor(
                     authorEmoji = "",
                     body = obj.getString("body"),
                     createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                    upvoteCount = obj.optInt("upvoteCount", 0),
+                    downvoteCount = obj.optInt("downvoteCount", 0),
+                    myVote = obj.optInt("myVote", 0),
+                    replyToId = obj.optString("replyToId", ""),
+                    replyToAuthorName = obj.optString("replyToAuthorName", ""),
+                    replyToSnippet = obj.optString("replyToSnippet", ""),
+                    mediaUrl = obj.optString("mediaUrl", ""),
                 )
             }
         }.getOrDefault(emptyList())
@@ -129,6 +160,13 @@ class ForumViewModel @JvmOverloads constructor(
                     put("authorEmoji", "")
                     put("body", c.body)
                     put("createdAt", c.createdAt)
+                    put("upvoteCount", c.upvoteCount)
+                    put("downvoteCount", c.downvoteCount)
+                    put("myVote", c.myVote)
+                    put("replyToId", c.replyToId)
+                    put("replyToAuthorName", c.replyToAuthorName)
+                    put("replyToSnippet", c.replyToSnippet)
+                    put("mediaUrl", c.mediaUrl)
                 }
                 array.put(obj)
             }
@@ -146,11 +184,14 @@ class ForumViewModel @JvmOverloads constructor(
 
     /** Filtered discussion feed strictly scoped to the user's college/university. */
     val posts: StateFlow<List<ForumPost>> = combine(_allPosts, _query, _communityId) { posts, query, community ->
+        val q = query.trim()
         posts.filter { post ->
             (community == null || post.communityId == community) &&
-                (query.isBlank() ||
-                    post.title.contains(query, ignoreCase = true) ||
-                    post.body.contains(query, ignoreCase = true))
+                (q.isBlank() ||
+                    post.title.contains(q, ignoreCase = true) ||
+                    post.body.contains(q, ignoreCase = true) ||
+                    post.authorName.contains(q, ignoreCase = true) ||
+                    post.communityName.contains(q, ignoreCase = true))
         }
     }.stateIn(
         scope = viewModelScope,
@@ -204,6 +245,23 @@ class ForumViewModel @JvmOverloads constructor(
         _university.value = trimmed
         prefs.edit().putString("last_university", trimmed).apply()
         rebuildFeed()
+    }
+
+    fun refreshDiscussions(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching {
+                remotePosts = repository.fetchPostsOnce()
+                rebuildFeed()
+            }
+            val openId = _selectedPostId.value
+            if (openId != null) {
+                runCatching {
+                    val fresh = repository.fetchCommentsOnce(openId)
+                    mergeComments(openId, fresh)
+                }
+            }
+            onComplete()
+        }
     }
 
     private fun sameCollege(a: String, b: String): Boolean {
@@ -260,21 +318,48 @@ class ForumViewModel @JvmOverloads constructor(
         _comments.value = emptyList()
     }
 
+    private fun applyLocalVotes(list: List<ForumComment>): List<ForumComment> {
+        val savedVotes = getCommentVotes()
+        return list.map { c ->
+            val saved = savedVotes[c.id]
+            if (saved != null && saved != c.myVote) {
+                val upDelta = (if (saved == 1) 1 else 0) - (if (c.myVote == 1) 1 else 0)
+                val downDelta = (if (saved == -1) 1 else 0) - (if (c.myVote == -1) 1 else 0)
+                c.copy(
+                    myVote = saved,
+                    upvoteCount = (c.upvoteCount + upDelta).coerceAtLeast(0),
+                    downvoteCount = (c.downvoteCount + downDelta).coerceAtLeast(0),
+                )
+            } else c
+        }
+    }
+
+    private fun mergeComments(postId: String, remote: List<ForumComment>) {
+        val del = getDeletedIds()
+        val base = (demoComments + remote).filter { it.id !in del }
+        val loc = loadLocalComments(postId).filter { it.id !in del }
+        val currentMap = _comments.value.associateBy { it.id }
+        val merged = (loc + base).distinctBy { it.id }.map { item ->
+            // preserve in-session local vote if same ID
+            val inSession = currentMap[item.id]
+            if (inSession != null && item.authorUid == currentUid && item.mediaUrl.isBlank() && inSession.mediaUrl.isNotBlank()) {
+                item.copy(mediaUrl = inSession.mediaUrl)
+            } else item
+        }
+        _comments.value = applyLocalVotes(merged).sortedBy { it.createdAt }
+    }
+
     private fun startComments(postId: String) {
         commentsListener?.remove()
         demoComments = ForumDemo.comments(postId)
         val deletedIds = getDeletedIds()
         val local = loadLocalComments(postId).filter { it.id !in deletedIds }
-        _comments.value = (demoComments + local).filter { it.id !in deletedIds }.distinctBy { it.id }
+        _comments.value = applyLocalVotes((demoComments + local).filter { it.id !in deletedIds }.distinctBy { it.id })
+            .sortedBy { it.createdAt }
 
         runCatching {
             commentsListener = repository.observeComments(postId) { remote ->
-                val del = getDeletedIds()
-                // Always keep pre-loaded peer replies merged with Firestore & local replies
-                // so adding a new reply never hides existing replies from other students.
-                val base = (demoComments + remote).filter { it.id !in del }
-                val loc = loadLocalComments(postId).filter { it.id !in del }
-                _comments.value = (loc + base).distinctBy { it.id }.sortedBy { it.createdAt }
+                mergeComments(postId, remote)
             }
         }
     }
@@ -305,6 +390,12 @@ class ForumViewModel @JvmOverloads constructor(
         _uiEvents.tryEmit(ForumUiEvent.Message("Discussion posted in ${community.name}!"))
 
         viewModelScope.launch {
+            cache.emitUnifiedNotification(
+                title = "New Discussion in ${community.name}",
+                body = "${newPost.title} — started in $college forum.",
+                type = "forum",
+                prefKey = "notif_forum",
+            )
             runCatching { repository.addPost(title.trim(), body.trim(), community, college) }
                 .onSuccess { saved ->
                     localPosts = localPosts.map { if (it.id == newPost.id) saved else it }
@@ -363,6 +454,16 @@ class ForumViewModel @JvmOverloads constructor(
         _uiEvents.tryEmit(ForumUiEvent.Message(if (upvoted) "Liked discussion" else "Unliked"))
 
         viewModelScope.launch {
+            if (upvoted) {
+                val me = auth.currentUser?.displayName?.takeIf { it.isNotBlank() } ?: "A peer"
+                cache.emitUnifiedNotification(
+                    title = "Discussion Liked",
+                    body = "$me liked \"${post.title}\".",
+                    type = "forum",
+                    prefKey = "notif_forum",
+                    targetUid = post.authorUid.takeIf { it.isNotBlank() && !it.startsWith("demo-") },
+                )
+            }
             runCatching { repository.toggleUpvote(postId) }
         }
     }
@@ -374,17 +475,59 @@ class ForumViewModel @JvmOverloads constructor(
         saveLocalPosts(localPosts)
     }
 
-    fun addComment(post: ForumPost, body: String) {
-        if (body.isBlank()) return
+    fun voteComment(post: ForumPost, comment: ForumComment, requestedVote: Int) {
+        val nextVote = if (comment.myVote == requestedVote) 0 else requestedVote
+        saveCommentVote(comment.id, nextVote)
+
+        val upDelta = (if (nextVote == 1) 1 else 0) - (if (comment.myVote == 1) 1 else 0)
+        val downDelta = (if (nextVote == -1) 1 else 0) - (if (comment.myVote == -1) 1 else 0)
+        val updated = comment.copy(
+            myVote = nextVote,
+            upvoteCount = (comment.upvoteCount + upDelta).coerceAtLeast(0),
+            downvoteCount = (comment.downvoteCount + downDelta).coerceAtLeast(0),
+        )
+        val loc = loadLocalComments(post.id).map { if (it.id == comment.id) updated else it }
+        saveLocalComments(post.id, loc)
+        _comments.value = _comments.value.map { if (it.id == comment.id) updated else it }
+
+        viewModelScope.launch {
+            if (nextVote == 1) {
+                val me = auth.currentUser?.displayName?.takeIf { it.isNotBlank() } ?: "A peer"
+                cache.emitUnifiedNotification(
+                    title = "Response Upvoted",
+                    body = "$me upvoted a response on \"${post.title}\".",
+                    type = "forum",
+                    prefKey = "notif_forum",
+                    targetUid = comment.authorUid.takeIf { it.isNotBlank() && !it.startsWith("demo-") },
+                )
+            }
+            runCatching { repository.voteComment(post.id, comment.id, nextVote) }
+        }
+    }
+
+    fun addComment(
+        post: ForumPost,
+        body: String,
+        replyTo: ForumComment? = null,
+        mediaUrl: String = "",
+    ) {
+        if (body.isBlank() && mediaUrl.isBlank()) return
         val user = auth.currentUser
+        val meName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You"
+        val cleanBody = body.trim().ifBlank { if (mediaUrl.isNotBlank()) "Shared an attachment" else "" }
+        val snippet = replyTo?.body?.take(80).orEmpty()
         val optimistic = ForumComment(
             id = "local-${System.currentTimeMillis()}",
             postId = post.id,
             authorUid = user?.uid.orEmpty(),
-            authorName = user?.displayName?.takeIf { it.isNotBlank() } ?: "You",
+            authorName = meName,
             authorEmoji = "",
-            body = body.trim(),
+            body = cleanBody,
             createdAt = System.currentTimeMillis(),
+            replyToId = replyTo?.id.orEmpty(),
+            replyToAuthorName = replyTo?.authorName.orEmpty(),
+            replyToSnippet = snippet,
+            mediaUrl = mediaUrl,
         )
         val updatedComments = loadLocalComments(post.id) + optimistic
         saveLocalComments(post.id, updatedComments)
@@ -397,16 +540,44 @@ class ForumViewModel @JvmOverloads constructor(
         _uiEvents.tryEmit(ForumUiEvent.Message("Reply posted!"))
 
         viewModelScope.launch {
-            runCatching { repository.addComment(post, body.trim()) }
-                .onSuccess { saved ->
-                    val refreshed = loadLocalComments(post.id).map {
-                        if (it.id == optimistic.id) saved else it
-                    }
-                    saveLocalComments(post.id, refreshed)
-                    _comments.value = _comments.value.map {
-                        if (it.id == optimistic.id) saved else it
-                    }
+            if (replyTo != null) {
+                cache.emitUnifiedNotification(
+                    title = "Reply to your comment",
+                    body = "$meName replied to ${replyTo.authorName}: \"$cleanBody\" on \"${post.title}\"",
+                    type = "forum",
+                    prefKey = "notif_forum",
+                    targetUid = replyTo.authorUid.takeIf { it.isNotBlank() && !it.startsWith("demo-") },
+                )
+            } else {
+                cache.emitUnifiedNotification(
+                    title = "New Reply on Discussion",
+                    body = "$meName commented on \"${post.title}\": \"$cleanBody\"",
+                    type = "forum",
+                    prefKey = "notif_forum",
+                    targetUid = post.authorUid.takeIf { it.isNotBlank() && !it.startsWith("demo-") },
+                )
+            }
+            runCatching {
+                repository.addComment(
+                    post = post,
+                    body = cleanBody,
+                    replyToId = replyTo?.id.orEmpty(),
+                    replyToAuthorName = replyTo?.authorName.orEmpty(),
+                    replyToSnippet = snippet,
+                    mediaUrl = mediaUrl,
+                )
+            }.onSuccess { saved ->
+                val resolvedSaved = if (saved.mediaUrl.isBlank() && mediaUrl.isNotBlank()) {
+                    saved.copy(mediaUrl = mediaUrl)
+                } else saved
+                val refreshed = loadLocalComments(post.id).map {
+                    if (it.id == optimistic.id) resolvedSaved else it
                 }
+                saveLocalComments(post.id, refreshed)
+                _comments.value = _comments.value.map {
+                    if (it.id == optimistic.id) resolvedSaved else it
+                }
+            }
         }
     }
 
@@ -453,6 +624,39 @@ class ForumViewModel @JvmOverloads constructor(
             runCatching { repository.report("comment", comment.id, reason) }
             _uiEvents.tryEmit(ForumUiEvent.Message("Reply reported — thank you."))
         }
+    }
+
+    suspend fun prepareAttachmentUri(uri: Uri): String = withContext(Dispatchers.IO) {
+        val ctx = getApplication<Application>()
+        val mime = ctx.contentResolver.getType(uri).orEmpty().lowercase()
+        val rawBytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@withContext ""
+        if (mime.contains("gif")) {
+            if (rawBytes.size <= 220_000) {
+                return@withContext "data:image/gif;base64," + Base64.encodeToString(rawBytes, Base64.NO_WRAP)
+            }
+            val dir = File(ctx.filesDir, "forum_media").apply { mkdirs() }
+            val out = File(dir, "gif-${System.currentTimeMillis()}.gif")
+            out.writeBytes(rawBytes)
+            return@withContext Uri.fromFile(out).toString()
+        }
+
+        val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
+            ?: return@withContext ""
+        val maxDim = 720
+        val scaled = if (bitmap.width > maxDim || bitmap.height > maxDim) {
+            val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
+            Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt().coerceAtLeast(1), (bitmap.height * ratio).toInt().coerceAtLeast(1), true)
+        } else bitmap
+        val baos = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 76, baos)
+        val jpegBytes = baos.toByteArray()
+        if (jpegBytes.size <= 220_000) {
+            return@withContext "data:image/jpeg;base64," + Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+        }
+        val dir = File(ctx.filesDir, "forum_media").apply { mkdirs() }
+        val out = File(dir, "img-${System.currentTimeMillis()}.jpg")
+        out.writeBytes(jpegBytes)
+        return@withContext Uri.fromFile(out).toString()
     }
 
     override fun onCleared() {

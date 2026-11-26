@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import androidx.room.withTransaction
+import com.example.peers.features.notifications.PeersNotificationHelper
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -102,6 +103,8 @@ class OfflineCacheRepository private constructor(context: Context) {
                                 ?: System.currentTimeMillis(),
                             isUnread = doc.getBoolean("read") != true,
                             type = doc.getString("type") ?: "info",
+                            actionData = doc.getString("actionData").orEmpty(),
+                            resolvedState = doc.getString("resolvedState").orEmpty(),
                         )
                     }.orEmpty()
                 )
@@ -162,25 +165,112 @@ class OfflineCacheRepository private constructor(context: Context) {
     }
 
     suspend fun hydrateNotifications(remote: List<RemoteNotification>) {
-        if (remote.isEmpty()) return // keep the demo seed while the server is empty
+        if (remote.isEmpty()) return // keep existing local/demo alerts while server is empty
         database.withTransaction {
             val local = dao.notificationRows().associateBy { it.id }
-            dao.clearSyncedNotifications()
             remote.forEach { item ->
-                val pendingLocal = local[item.id]
-                if (pendingLocal != null && pendingLocal.pendingRead) {
-                    // Keep the local read state until the server catches up.
-                    dao.upsertNotification(
-                        item.toEntity(
-                            isUnread = false,
-                            remoteBacked = true,
-                            pendingRead = item.isUnread,
-                        )
-                    )
-                } else {
-                    dao.upsertNotification(item.toEntity())
-                }
+                val existing = local[item.id]
+                val keepRead = existing != null && (!existing.isUnread || existing.pendingRead)
+                val resolved = existing?.resolvedState?.takeIf { it.isNotBlank() } ?: item.resolvedState
+                dao.upsertNotification(
+                    item.toEntity(
+                        isUnread = if (keepRead) false else item.isUnread,
+                        remoteBacked = true,
+                        pendingRead = existing?.pendingRead == true && item.isUnread,
+                    ).copy(resolvedState = resolved)
+                )
             }
+        }
+    }
+
+    /**
+     * Unified notification dispatcher: inserts into in-app Room Notifications screen,
+     * shows an Android top system notification with the PEERS icon, and syncs to Firestore.
+     */
+    suspend fun emitUnifiedNotification(
+        title: String,
+        body: String,
+        type: String = "info",
+        prefKey: String = "notif_events",
+        actionData: String = "",
+        targetUid: String? = null,
+        id: String = "notif-${System.currentTimeMillis()}-${(100..999).random()}",
+    ) {
+        val now = System.currentTimeMillis()
+        val currentUid = uid
+        val deliverLocally = targetUid.isNullOrBlank() || targetUid == currentUid || currentUid.isNullOrBlank()
+        if (deliverLocally) {
+            dao.upsertNotification(
+                NotificationCacheEntity(
+                    id = id,
+                    title = title,
+                    body = body,
+                    emoji = "",
+                    timestampMillis = now,
+                    isUnread = true,
+                    type = type,
+                    remoteBacked = false,
+                    pendingRead = false,
+                    actionData = actionData,
+                    resolvedState = "",
+                )
+            )
+            PeersNotificationHelper.showSystemNotification(
+                context = appContext,
+                id = id.hashCode(),
+                title = title,
+                body = body,
+                prefKey = prefKey,
+            )
+        }
+
+        val destUid = targetUid?.takeIf { it.isNotBlank() } ?: currentUid ?: return
+        runCatching {
+            firestore.collection("users").document(destUid)
+                .collection("notifications").document(id)
+                .set(
+                    mapOf(
+                        "title" to title,
+                        "body" to body,
+                        "type" to type,
+                        "actionData" to actionData,
+                        "resolvedState" to "",
+                        "read" to false,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                    )
+                ).await()
+        }.onFailure {
+            android.util.Log.w("PeersCache", "Firestore notification write skipped", it)
+        }
+    }
+
+    suspend fun resolveNotificationAction(notificationId: String, state: String) {
+        dao.updateNotificationResolved(notificationId, state)
+        val ref = notificationsRef()?.document(notificationId) ?: return
+        runCatching {
+            ref.update(mapOf("resolvedState" to state, "read" to true)).await()
+        }
+    }
+
+    suspend fun refreshNotificationsNow() {
+        val ref = notificationsRef() ?: return
+        runCatching {
+            val snap = ref.orderBy("createdAt", Query.Direction.DESCENDING).limit(30).get().await()
+            val list = snap.documents.mapNotNull { doc ->
+                val title = doc.getString("title") ?: return@mapNotNull null
+                RemoteNotification(
+                    id = doc.id,
+                    title = title,
+                    body = doc.getString("body").orEmpty(),
+                    emoji = "",
+                    timestampMillis = doc.getTimestamp("createdAt")?.toDate()?.time ?: System.currentTimeMillis(),
+                    isUnread = doc.getBoolean("read") != true,
+                    type = doc.getString("type") ?: "info",
+                    actionData = doc.getString("actionData").orEmpty(),
+                    resolvedState = doc.getString("resolvedState").orEmpty(),
+                )
+            }
+            hydrateNotifications(list)
         }
     }
 
@@ -402,6 +492,8 @@ class OfflineCacheRepository private constructor(context: Context) {
         type = type,
         remoteBacked = remoteBacked,
         pendingRead = pendingRead,
+        actionData = actionData,
+        resolvedState = resolvedState,
     )
 
     companion object {

@@ -1,5 +1,6 @@
 package com.example.peers.features.accommodation
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -33,10 +36,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -52,6 +57,7 @@ data class ListingForm(
     val furnishing: String,
     val amenities: List<String>,
     val availability: String,
+    val contactPhone: String,
     val photoUrls: List<String>,
     val emoji: String,
 )
@@ -59,19 +65,23 @@ data class ListingForm(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddListingScreen(
+    initial: AccommodationListing? = null,
     onBack: () -> Unit,
     onSubmit: (ListingForm) -> Unit,
 ) {
-    var title by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(accommodationTypes.first()) }
-    var rent by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var distance by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("Any") }
-    var furnishing by remember { mutableStateOf(furnishingOptions.first()) }
-    var amenities by remember { mutableStateOf(setOf<String>()) }
-    var availability by remember { mutableStateOf("Available now") }
-    var photoUrls by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
+    val formKey = initial?.id ?: "new_accom"
+    var title by rememberSaveable(formKey) { mutableStateOf(initial?.title.orEmpty()) }
+    var type by rememberSaveable(formKey) { mutableStateOf(initial?.type ?: accommodationTypes.first()) }
+    var rent by rememberSaveable(formKey) { mutableStateOf(initial?.rentPerMonth?.takeIf { it > 0 }?.toString().orEmpty()) }
+    var address by rememberSaveable(formKey) { mutableStateOf(initial?.address.orEmpty()) }
+    var distance by rememberSaveable(formKey) { mutableStateOf(initial?.distanceKm?.takeIf { it > 0 }?.toString().orEmpty()) }
+    var gender by rememberSaveable(formKey) { mutableStateOf(initial?.genderPreference ?: "Any") }
+    var furnishing by rememberSaveable(formKey) { mutableStateOf(initial?.furnishing ?: furnishingOptions.first()) }
+    var amenities by rememberSaveable(formKey) { mutableStateOf(initial?.amenities?.toList() ?: emptyList()) }
+    var availability by rememberSaveable(formKey) { mutableStateOf(initial?.availability ?: "Available now") }
+    var contactPhone by rememberSaveable(formKey) { mutableStateOf(initial?.contactPhone.orEmpty()) }
+    var photoUrls by rememberSaveable(formKey) { mutableStateOf(initial?.photoUrls?.joinToString("\n").orEmpty()) }
 
     val canSubmit = title.isNotBlank() && address.isNotBlank() && (rent.toIntOrNull() ?: 0) > 0
 
@@ -82,7 +92,7 @@ fun AddListingScreen(
                 title = {
                     Column {
                         Text(
-                            "Add accommodation",
+                            if (initial != null) "Edit accommodation" else "Add accommodation",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
@@ -94,7 +104,10 @@ fun AddListingScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        focusManager.clearFocus()
+                        onBack()
+                    }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -109,6 +122,9 @@ fun AddListingScreen(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
+                .imePadding()
+                .navigationBarsPadding()
+                .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
@@ -206,6 +222,19 @@ fun AddListingScreen(
                     .padding(top = 14.dp),
             )
 
+            OutlinedTextField(
+                value = contactPhone,
+                onValueChange = { contactPhone = it },
+                label = { Text("Contact Phone Number") },
+                placeholder = { Text("+91 98765 43210") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp),
+            )
+
             FormSection("Photos & Notes")
             OutlinedTextField(
                 value = photoUrls,
@@ -220,8 +249,7 @@ fun AddListingScreen(
             )
 
             Text(
-                "Listings start as pending and become active after community review. " +
-                    "Never share your exact unit number publicly.",
+                "Never share your exact unit number publicly. Interested students can enquire to confirm availability.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 14.dp),
@@ -229,6 +257,7 @@ fun AddListingScreen(
 
             Button(
                 onClick = {
+                    focusManager.clearFocus()
                     onSubmit(
                         ListingForm(
                             title = title,
@@ -240,6 +269,7 @@ fun AddListingScreen(
                             furnishing = furnishing,
                             amenities = amenities.toList(),
                             availability = availability.ifBlank { "Available now" },
+                            contactPhone = contactPhone.trim(),
                             photoUrls = photoUrls.lineSequence()
                                 .map(String::trim)
                                 .filter { it.startsWith("http") }
@@ -256,7 +286,7 @@ fun AddListingScreen(
                     .padding(vertical = 24.dp)
                     .height(54.dp),
             ) {
-                Text("Submit listing", fontWeight = FontWeight.Bold)
+                Text(if (initial != null) "Save listing" else "Submit listing", fontWeight = FontWeight.Bold)
             }
         }
     }

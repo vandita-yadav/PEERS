@@ -39,6 +39,13 @@ data class ForumComment(
     val authorEmoji: String,
     val body: String,
     val createdAt: Long,
+    val upvoteCount: Int = 0,
+    val downvoteCount: Int = 0,
+    val myVote: Int = 0, // 1 = upvoted, -1 = downvoted, 0 = neutral
+    val replyToId: String = "",
+    val replyToAuthorName: String = "",
+    val replyToSnippet: String = "",
+    val mediaUrl: String = "",
 )
 
 enum class ReportReason(val label: String) {

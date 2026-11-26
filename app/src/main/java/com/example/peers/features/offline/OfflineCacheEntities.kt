@@ -26,6 +26,8 @@ data class NotificationCacheEntity(
     val type: String,
     val remoteBacked: Boolean = true,
     val pendingRead: Boolean = false,
+    val actionData: String = "",
+    val resolvedState: String = "",
 )
 
 @Entity(tableName = "saved_event_cache")
@@ -52,4 +54,6 @@ data class RemoteNotification(
     val timestampMillis: Long,
     val isUnread: Boolean,
     val type: String,
+    val actionData: String = "",
+    val resolvedState: String = "",
 )

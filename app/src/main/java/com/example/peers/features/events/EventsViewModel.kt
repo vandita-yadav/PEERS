@@ -3,9 +3,9 @@ package com.example.peers.features.events
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.peers.features.notifications.PeersNotificationHelper
 import com.example.peers.features.offline.OfflineCacheRepository
 import com.example.peers.features.offline.SavedEventCacheEntity
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +39,17 @@ class EventsViewModel @JvmOverloads constructor(
 ) : AndroidViewModel(application) {
 
     private val cache = OfflineCacheRepository.get(application)
+    private val auth = FirebaseAuth.getInstance()
     private val prefs = application.getSharedPreferences("peers_events_local", android.content.Context.MODE_PRIVATE)
+
+    val currentUid: String get() = auth.currentUser?.uid.orEmpty()
+
+    private fun getDeletedEventIds(): Set<String> =
+        prefs.getStringSet("deleted_event_ids", emptySet()) ?: emptySet()
+
+    private fun markDeletedEventId(id: String) {
+        prefs.edit().putStringSet("deleted_event_ids", getDeletedEventIds() + id).apply()
+    }
 
     private fun loadLocalCreatedEvents(): List<CommunityEvent> {
         val jsonStr = prefs.getString("created_events", null) ?: return emptyList()
@@ -113,12 +123,17 @@ class EventsViewModel @JvmOverloads constructor(
     private var remoteSavedEventsListener: ListenerRegistration? = null
 
     init {
+        val deleted = getDeletedEventIds()
         val localCreated = loadLocalCreatedEvents()
-        _rawEvents.value = (localCreated + demoEvents()).distinctBy { it.id }
+        _rawEvents.value = (localCreated + demoEvents())
+            .filter { it.id !in deleted }
+            .distinctBy { it.id }
         _myAttendance.value = prefs.getStringSet("attendance_ids", emptySet()) ?: emptySet()
 
         eventsListener = repository.observeEvents { remoteEvents ->
+            val del = getDeletedEventIds()
             val combined = (loadLocalCreatedEvents() + remoteEvents + demoEvents())
+                .filter { it.id !in del }
                 .distinctBy { it.id }
                 .sortedBy { it.startMillis }
             _rawEvents.value = combined
@@ -285,6 +300,21 @@ class EventsViewModel @JvmOverloads constructor(
         _isCreatingEvent.value = show
     }
 
+    fun refreshEvents(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching {
+                val remoteEvents = repository.fetchEventsOnce()
+                val del = getDeletedEventIds()
+                val combined = (loadLocalCreatedEvents() + remoteEvents + demoEvents())
+                    .filter { it.id !in del }
+                    .distinctBy { it.id }
+                    .sortedBy { it.startMillis }
+                _rawEvents.value = combined
+            }
+            onComplete()
+        }
+    }
+
     fun toggleRsvp(event: CommunityEvent) {
         val willAttend = event.id !in _myAttendance.value
         // 1. Optimistically update local state immediately
@@ -304,13 +334,15 @@ class EventsViewModel @JvmOverloads constructor(
         }
         if (willAttend) {
             _uiEvents.tryEmit(EventUiEvent.Message("You're attending ${event.title}!"))
-            PeersNotificationHelper.showSystemNotification(
-                context = getApplication(),
-                id = event.id.hashCode(),
-                title = "RSVP Confirmed: ${event.title}",
-                body = "Venue: ${event.venue} (${event.city})",
-                prefKey = "notif_events",
-            )
+            viewModelScope.launch {
+                cache.emitUnifiedNotification(
+                    title = "Event Reminder: ${event.title}",
+                    body = "You're registered for ${event.title} at ${event.venue}, ${event.city}. Tap Events to view schedule.",
+                    type = "info",
+                    prefKey = "notif_events",
+                    id = "rsvp-${event.id}",
+                )
+            }
         } else {
             _uiEvents.tryEmit(EventUiEvent.Message("RSVP cancelled for ${event.title}."))
         }
@@ -393,25 +425,76 @@ class EventsViewModel @JvmOverloads constructor(
             emoji = "",
             capacity = capacity.coerceAtLeast(10),
             attendeeCount = 1,
-            createdBy = "",
+            createdBy = currentUid,
             createdAt = System.currentTimeMillis(),
         )
 
         // Optimistically add to events list immediately
         val updatedCreated = listOf(newEvent) + loadLocalCreatedEvents()
         saveLocalCreatedEvents(updatedCreated)
-        _rawEvents.value = listOf(newEvent) + _rawEvents.value
+        _rawEvents.value = (listOf(newEvent) + _rawEvents.value).distinctBy { it.id }
         _myAttendance.value = _myAttendance.value + newEvent.id
         prefs.edit().putStringSet("attendance_ids", _myAttendance.value).apply()
         _isCreatingEvent.value = false
         _uiEvents.tryEmit(EventUiEvent.Message("Event '${newEvent.title}' created and RSVP'd!"))
 
         viewModelScope.launch {
+            cache.emitUnifiedNotification(
+                title = "New Campus Event: ${newEvent.title}",
+                body = "Hosted by ${newEvent.organizerName} at ${newEvent.venue}, ${newEvent.city}.",
+                type = "info",
+                prefKey = "notif_events",
+                id = "new-${newEvent.id}",
+            )
             runCatching {
                 repository.createEvent(newEvent)
             }.onFailure { err ->
                 android.util.Log.w("PeersEvents", "Event created locally; Firestore sync pending", err)
             }
+        }
+    }
+
+    fun editEvent(
+        existing: CommunityEvent,
+        title: String,
+        description: String,
+        organizerName: String,
+        organizerType: EventOrganizerType,
+        venue: String,
+        city: String,
+        startMillis: Long,
+        capacity: Int,
+    ) {
+        val updated = existing.copy(
+            title = title.trim(),
+            description = description.trim(),
+            organizerName = organizerName.trim().ifBlank { "PEERS Community" },
+            organizerType = organizerType,
+            venue = venue.trim(),
+            city = city.trim(),
+            startMillis = startMillis,
+            capacity = capacity.coerceAtLeast(10),
+        )
+        val local = listOf(updated) + loadLocalCreatedEvents().filterNot { it.id == updated.id }
+        saveLocalCreatedEvents(local)
+        _rawEvents.value = _rawEvents.value.map { if (it.id == updated.id) updated else it }
+        if (_viewingEvent.value?.id == updated.id) _viewingEvent.value = updated
+        _uiEvents.tryEmit(EventUiEvent.Message("Event updated."))
+
+        viewModelScope.launch {
+            runCatching { repository.updateEvent(updated) }
+        }
+    }
+
+    fun deleteEvent(event: CommunityEvent) {
+        markDeletedEventId(event.id)
+        saveLocalCreatedEvents(loadLocalCreatedEvents().filterNot { it.id == event.id })
+        _rawEvents.value = _rawEvents.value.filterNot { it.id == event.id }
+        if (_viewingEvent.value?.id == event.id) closeEventDetails()
+        _uiEvents.tryEmit(EventUiEvent.Message("Event deleted."))
+
+        viewModelScope.launch {
+            runCatching { repository.deleteEvent(event.id) }
         }
     }
 

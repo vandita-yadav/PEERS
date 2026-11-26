@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -15,14 +16,15 @@ import com.example.peers.MainActivity
 import com.example.peers.R
 
 /**
- * Manages Android system notifications so important PEERS alerts appear both inside
- * the app and in the phone's system notification shade when allowed.
+ * Manages Android system notifications so every important PEERS alert renders with
+ * the PEERS brand emblem in the top status bar / notification shade alongside the
+ * in-app Notifications screen.
  */
 object PeersNotificationHelper {
 
-    const val CHANNEL_ID = "peers_updates_channel"
-    private const val CHANNEL_NAME = "PEERS Student Alerts"
-    private const val CHANNEL_DESC = "Campus events, roommate requests, replies, and updates"
+    const val CHANNEL_ID = "peers_student_alerts_v2"
+    private const val CHANNEL_NAME = "PEERS Alerts & Updates"
+    private const val CHANNEL_DESC = "Campus events, discussion replies, roommates, and enquiries"
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -31,9 +33,10 @@ object PeersNotificationHelper {
                 val channel = NotificationChannel(
                     CHANNEL_ID,
                     CHANNEL_NAME,
-                    NotificationManager.IMPORTANCE_DEFAULT,
+                    NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
                     description = CHANNEL_DESC
+                    enableVibration(true)
                 }
                 manager.createNotificationChannel(channel)
             }
@@ -83,12 +86,18 @@ object PeersNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val largeBitmap = runCatching {
+            BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
+        }.getOrNull()
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_peers_notif)
+            .setLargeIcon(largeBitmap)
+            .setColor(0xFF6366F1.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 

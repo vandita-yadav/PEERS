@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,13 +28,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Badge
@@ -42,6 +47,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -60,6 +67,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,6 +80,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -108,13 +118,21 @@ fun AccommodationScreen(
     val roommateRequests by viewModel.roommateRequests.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val focusManager = LocalFocusManager.current
+    val currentUid = viewModel.currentUid
 
     BackHandler { onBack() }
 
     var showFilters by remember { mutableStateOf(false) }
     var showAddListing by remember { mutableStateOf(false) }
     var showRoommates by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
     var selectedListing by remember { mutableStateOf<AccommodationListing?>(null) }
+    var editingListing by remember { mutableStateOf<AccommodationListing?>(null) }
+    var deletingListing by remember { mutableStateOf<AccommodationListing?>(null) }
+
+    fun isMyStay(listing: AccommodationListing): Boolean =
+        listing.id.startsWith("user-") || (currentUid.isNotBlank() && listing.contributorUid == currentUid && !listing.isDemo)
 
     LaunchedEffect(message) {
         message?.let {
@@ -125,7 +143,11 @@ fun AccommodationScreen(
 
     val visible = listings.filter(filters::matches)
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) },
+    ) {
         Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -248,20 +270,33 @@ fun AccommodationScreen(
                 }
             }
 
-            if (visible.isEmpty()) {
-                EmptyListings(onReset = viewModel::clearFilters)
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 110.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    items(visible, key = { it.id }) { listing ->
-                        AccommodationCard(
-                            listing = listing,
-                            wishlisted = listing.id in wishlist,
-                            onWishlist = { viewModel.toggleWishlist(listing.id) },
-                            onOpen = { selectedListing = listing },
-                        )
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    viewModel.refreshAll { isRefreshing = false }
+                },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (visible.isEmpty()) {
+                    EmptyListings(onReset = viewModel::clearFilters)
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 110.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(visible, key = { it.id }) { listing ->
+                            AccommodationCard(
+                                listing = listing,
+                                wishlisted = listing.id in wishlist,
+                                isMine = isMyStay(listing),
+                                onWishlist = { viewModel.toggleWishlist(listing.id) },
+                                onEdit = { editingListing = listing },
+                                onDelete = { deletingListing = listing },
+                                onOpen = { selectedListing = listing },
+                            )
+                        }
                     }
                 }
             }
@@ -297,6 +332,7 @@ fun AccommodationScreen(
                 wishlisted = listing.id in wishlist,
                 isVerifiedByMe = listing.id in verifiedIds,
                 isReviewed = listing.id in reviewedIds,
+                isMine = isMyStay(listing),
                 reviews = reviews[listing.id].orEmpty(),
                 onWishlist = { viewModel.toggleWishlist(listing.id) },
                 onMarkGenuine = { viewModel.markGenuine(listing) },
@@ -308,6 +344,16 @@ fun AccommodationScreen(
                 onRoommateRequest = { contact, text ->
                     viewModel.sendRoommateRequest(listing, contact, text)
                 },
+                onOpenRoommates = {
+                    selectedListing = null
+                    showRoommates = true
+                },
+                onSendEnquiry = { msg -> viewModel.sendEnquiry(listing, msg) },
+                onEditListing = {
+                    selectedListing = null
+                    editingListing = listing
+                },
+                onDeleteListing = { deletingListing = listing },
             )
         }
     }
@@ -319,24 +365,40 @@ fun AccommodationScreen(
         )
     }
 
-    if (showAddListing) {
+    if (showAddListing || editingListing != null) {
+        val editing = editingListing
         AddListingScreen(
-            onBack = { showAddListing = false },
-            onSubmit = { form ->
-                viewModel.addListing(
-                    title = form.title,
-                    type = form.type,
-                    rentPerMonth = form.rentPerMonth,
-                    address = form.address,
-                    distanceKm = form.distanceKm,
-                    genderPreference = form.gender,
-                    furnishing = form.furnishing,
-                    amenities = form.amenities,
-                    availability = form.availability,
-                    photoUrls = form.photoUrls,
-                    emoji = form.emoji,
-                )
+            initial = editing,
+            onBack = {
                 showAddListing = false
+                editingListing = null
+            },
+            onSubmit = { form ->
+                if (editing != null) {
+                    viewModel.editListing(editing, form)
+                    editingListing = null
+                } else {
+                    viewModel.addListing(form)
+                    showAddListing = false
+                }
+            },
+        )
+    }
+
+    deletingListing?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deletingListing = null },
+            title = { Text("Delete accommodation listing?", fontWeight = FontWeight.Bold) },
+            text = { Text("Remove \"${target.title}\" permanently from listings?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteListing(target)
+                    if (selectedListing?.id == target.id) selectedListing = null
+                    deletingListing = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingListing = null }) { Text("Cancel") }
             },
         )
     }
@@ -353,9 +415,13 @@ private fun filterChipColors() = FilterChipDefaults.filterChipColors(
 private fun AccommodationCard(
     listing: AccommodationListing,
     wishlisted: Boolean,
+    isMine: Boolean = false,
     onWishlist: () -> Unit,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
     onOpen: () -> Unit,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -499,6 +565,14 @@ private fun AccommodationCard(
                     )
                 }
                 Spacer(Modifier.weight(1f))
+                if (isMine) {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Edit, contentDescription = "Edit stay", tint = PeersPrimaryIndigo, modifier = Modifier.size(17.dp))
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Delete, contentDescription = "Delete stay", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(17.dp))
+                    }
+                }
                 Text(
                     "View details",
                     style = MaterialTheme.typography.labelLarge,

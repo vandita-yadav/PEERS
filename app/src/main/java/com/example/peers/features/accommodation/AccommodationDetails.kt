@@ -21,6 +21,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Call
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Map
@@ -71,6 +75,7 @@ fun AccommodationDetails(
     wishlisted: Boolean,
     isVerifiedByMe: Boolean,
     isReviewed: Boolean,
+    isMine: Boolean = false,
     reviews: List<AccommodationReview>,
     onWishlist: () -> Unit,
     onMarkGenuine: () -> Unit,
@@ -80,6 +85,10 @@ fun AccommodationDetails(
     onDeleteReview: (AccommodationReview) -> Unit = {},
     onReportReview: (String) -> Unit,
     onRoommateRequest: (ContactInfo, String) -> Unit,
+    onOpenRoommates: () -> Unit = {},
+    onSendEnquiry: (String) -> Unit = {},
+    onEditListing: () -> Unit = {},
+    onDeleteListing: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var showEnquiry by remember { mutableStateOf(false) }
@@ -116,6 +125,14 @@ fun AccommodationDetails(
                         color = PeersPrimaryIndigo,
                         modifier = Modifier.padding(top = 2.dp),
                     )
+                }
+                if (isMine) {
+                    IconButton(onClick = onEditListing) {
+                        Icon(Icons.Rounded.Edit, contentDescription = "Edit stay", tint = PeersPrimaryIndigo)
+                    }
+                    IconButton(onClick = onDeleteListing) {
+                        Icon(Icons.Rounded.Delete, contentDescription = "Delete stay", tint = MaterialTheme.colorScheme.error)
+                    }
                 }
                 IconButton(onClick = onWishlist) {
                     Icon(
@@ -228,19 +245,13 @@ fun AccommodationDetails(
                     FilledTonalButton(onClick = onMarkGenuine) {
                         Text("Mark as Genuine")
                     }
-                    Text(
-                        "  One per student",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
                 }
             }
 
             DetailSection("About this stay")
             Text(
                 "${listing.type} · ${listing.furnishing} · ${listing.genderPreference.lowercase()} friendly. " +
-                    "Contact the contributor to arrange a visit — no booking or payment happens in PEERS.",
+                    "Contact the owner directly or tap Enquire to confirm current room availability.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -248,7 +259,7 @@ fun AccommodationDetails(
             DetailSection("Amenities")
             FlowRowChips(listing.amenities)
 
-            DetailSection("Reviews")
+            DetailSection("Reviews (${reviews.size})")
             if (reviews.isEmpty()) {
                 Text(
                     "No reviews yet — be the first to share your experience.",
@@ -256,13 +267,19 @@ fun AccommodationDetails(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                reviews.take(5).forEach { review ->
-                    ReviewRow(
-                        review = review,
-                        onEdit = { editingReview = review },
-                        onDelete = { deletingReview = review },
-                        onReport = { onReportReview(review.id) },
-                    )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    itemsIndexed(reviews) { _, review ->
+                        ReviewRow(
+                            review = review,
+                            onEdit = { editingReview = review },
+                            onDelete = { deletingReview = review },
+                            onReport = { onReportReview(review.id) },
+                            modifier = androidx.compose.ui.Modifier.width(276.dp),
+                        )
+                    }
                 }
             }
             if (isReviewed) {
@@ -270,13 +287,13 @@ fun AccommodationDetails(
                     "You've reviewed this stay. Thanks!",
                     style = MaterialTheme.typography.labelMedium,
                     color = Color(0xFF1F6B3B),
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 6.dp),
                 )
             } else {
                 OutlinedButton(
                     onClick = { showReviewDialog = true },
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.padding(top = 6.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 ) {
                     Icon(Icons.Rounded.StarBorder, null, Modifier.size(18.dp))
                     Text("  Write a review")
@@ -285,17 +302,27 @@ fun AccommodationDetails(
 
             DetailSection("Roommate")
             Text(
-                "Looking for someone to share this stay? Send a request with only the contact details you choose to share.",
+                "Looking for someone to share this stay? Send a request to peers interested in this PG or manage your requests.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(
-                onClick = { showRoommateDialog = true },
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PeersPrimaryIndigo),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.padding(top = 10.dp),
             ) {
-                Text("Looking for a roommate", fontWeight = FontWeight.SemiBold)
+                Button(
+                    onClick = { showRoommateDialog = true },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PeersPrimaryIndigo),
+                ) {
+                    Text("Looking for a roommate", fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick = onOpenRoommates,
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text("Requests")
+                }
             }
             if (roommateSent) {
                 Text(
@@ -354,7 +381,8 @@ fun AccommodationDetails(
                 }
             }
 
-            DetailSection("Contributor")
+            DetailSection("Contact & Contributor")
+            val ownerPhone = listing.contactPhone.ifBlank { "+91 98140 11200" }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -370,17 +398,30 @@ fun AccommodationDetails(
                         color = Color(0xFF1D1B30),
                     )
                 }
-                Column(Modifier.padding(start = 12.dp)) {
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(
                         listing.contributorName.ifBlank { "PEERS student" },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "Listing contributor",
+                        "Contact: $ownerPhone",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = PeersPrimaryIndigo,
+                        fontWeight = FontWeight.Medium,
                     )
+                }
+                OutlinedButton(
+                    onClick = {
+                        val clean = ownerPhone.filter { it.isDigit() || it == '+' }
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$clean")))
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(Icons.Rounded.Call, contentDescription = "Call", modifier = Modifier.size(16.dp))
+                    Text("  Call")
                 }
             }
 
@@ -440,6 +481,7 @@ fun AccommodationDetails(
                 TextButton(onClick = {
                     showEnquiry = false
                     enquirySent = true
+                    onSendEnquiry(message)
                 }) { Text("Send", color = PeersPrimaryIndigo) }
             },
             dismissButton = {
@@ -641,11 +683,12 @@ private fun ReviewRow(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     onReport: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        modifier = modifier.padding(bottom = 4.dp),
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

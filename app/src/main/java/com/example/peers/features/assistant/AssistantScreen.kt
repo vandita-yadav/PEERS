@@ -101,6 +101,7 @@ fun AssistantScreen(
     onNavigateToCommunity: () -> Unit = {},
     onNavigateToRentals: () -> Unit = {},
     onNavigateToEvents: () -> Unit = {},
+    onNavigateToContacts: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: AssistantViewModel = viewModel()
 ) {
@@ -211,6 +212,7 @@ fun AssistantScreen(
                             AssistantActionType.OPEN_COMMUNITY -> onNavigateToCommunity()
                             AssistantActionType.OPEN_RENTALS -> onNavigateToRentals()
                             AssistantActionType.OPEN_EVENTS -> onNavigateToEvents()
+                            AssistantActionType.OPEN_CONTACTS -> onNavigateToContacts()
                         }
                     }
                 )
